@@ -1,0 +1,15 @@
+# Lighting conditions
+golden hour lighting
+dramatic chiaroscuro
+soft diffused light
+harsh midday sun
+moonlit night
+neon glow
+candlelight
+volumetric fog
+backlighting
+rim lighting
+studio lighting
+natural ambient light
+bioluminescent glow
+

@@ -1,0 +1,14 @@
+# Atmospheric moods
+mysterious
+serene
+epic
+melancholic
+triumphant
+ominous
+peaceful
+chaotic
+whimsical
+haunting
+energetic
+tranquil
+

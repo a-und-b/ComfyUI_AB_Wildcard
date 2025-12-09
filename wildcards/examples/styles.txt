@@ -1,0 +1,18 @@
+# Art styles for generation
+photorealistic
+anime
+oil painting
+watercolor
+digital art
+concept art
+illustration
+comic book
+pixel art
+impressionist
+surrealist
+art nouveau
+cyberpunk
+steampunk
+fantasy art
+sci-fi art
+

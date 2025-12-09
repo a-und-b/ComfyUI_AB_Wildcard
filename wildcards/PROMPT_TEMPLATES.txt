@@ -1,0 +1,142 @@
+// ============================================================
+// AB Wildcard - Feature Showcase Prompt Templates
+// Copy any of these into the AB Wildcard node to test features
+// ============================================================
+
+// ------------------------------------------------------------
+// TEMPLATE 1: Basic Wildcards
+// Demonstrates: __wildcard__ syntax, basic text files
+// ------------------------------------------------------------
+
+__examples/quality__, __examples/styles__ of __examples/subjects__, __examples/lighting__, __examples/moods__ atmosphere
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 2: Random Choices with {a|b|c}
+// Demonstrates: Inline random selection
+// ------------------------------------------------------------
+
+A {beautiful|stunning|majestic|ethereal} {dragon|phoenix|griffin|unicorn} in a {mystical forest|ancient ruins|volcanic mountain|crystal cave}, {flying|resting|fighting|hunting}
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 3: Variables for Consistency
+// Demonstrates: $var={...} definition, $var usage, .clean method
+// ------------------------------------------------------------
+
+$creature = {ice_dragon|fire_phoenix|storm_eagle}
+$color = {blue|red|gold}
+
+A majestic $creature.clean with $color scales, 
+$color flames emanating from its wings,
+$color eyes glowing intensely
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 4: Conditional Logic
+// Demonstrates: [if condition : true | false] syntax
+// ------------------------------------------------------------
+
+$time = {Day|Night}
+$weather = {Clear|Stormy}
+
+A warrior standing on a cliff,
+[if $time=Day : golden sunlight, warm tones | moonlit scene, cool blue tones],
+[if $weather=Stormy : lightning in background, dramatic clouds | peaceful sky, gentle breeze],
+[if $time=Night AND $weather=Stormy : ominous atmosphere, rain falling]
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 5: Range Selection (Pick Multiple)
+// Demonstrates: {2$$a|b|c} and __2-3$$wildcard__ syntax
+// ------------------------------------------------------------
+
+// Pick exactly 2 colors
+A dress with {2$$red|blue|green|gold|silver} accents
+
+// Pick 2-4 random styles
+__2-4$$examples/styles__ artwork of a landscape
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 6: Tag Aggregation with YAML Cards
+// Demonstrates: <[Tag]> syntax for card-based selection
+// ------------------------------------------------------------
+
+// Pick any character tagged as "warrior"
+<[warrior]>, epic battle scene, dramatic lighting
+
+// Pick any character tagged as "mage" AND "elemental"  
+<[mage AND elemental]>, casting powerful spell
+
+// Pick any environment tagged as "fantasy"
+Adventurer exploring <[fantasy]>
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 7: Utility Functions
+// Demonstrates: [shuffle:] and [clean:] functions
+// ------------------------------------------------------------
+
+// Randomize the order of elements
+[shuffle: red hair, blue eyes, pale skin, freckles, pointed ears]
+
+// Clean up messy formatting (removes double commas, extra spaces)
+[clean: a woman, , with long hair,  wearing a dress, ]
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 8: Combined Advanced Example
+// Demonstrates: All features working together
+// ------------------------------------------------------------
+
+// Define consistent elements
+$char_type = {warrior|mage}
+$element = {fire|ice|lightning|nature}
+$mood = __examples/moods__
+
+// Build the prompt
+__examples/quality__,
+<[$char_type AND $element]>,
+[if $char_type=warrior : wielding enchanted weapon | casting powerful spell],
+[if $element=fire : flames and embers surrounding],
+[if $element=ice : frost and crystals forming],
+$mood atmosphere,
+__examples/lighting__,
+{2$$cinematic composition|dramatic angle|dynamic pose|detailed background}
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 9: Global Variables Usage
+// Demonstrates: Using variables from globals.yaml
+// ------------------------------------------------------------
+
+$quality, 
+$style_cinematic,
+A hero standing victorious on a battlefield
+
+// Note: $quality and $style_cinematic are defined in globals.yaml
+// and are automatically available in all prompts
+
+
+
+// ------------------------------------------------------------
+// TEMPLATE 10: Nested Wildcards & Sequential Selection
+// Demonstrates: Wildcards inside wildcards, ~sequential prefix
+// ------------------------------------------------------------
+
+// Sequential mode (same seed = same result)
+{~Option A|Option B|Option C}
+
+// Nested random choices  
+A {tall|short} {$color = {red|blue} haired} warrior with $color armor
+
+

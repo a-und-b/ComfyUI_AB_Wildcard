@@ -1,0 +1,88 @@
+# Character Cards - Use with <[Tag]> syntax for tag-based selection
+# Example: <[warrior]> picks randomly from entries tagged "warrior"
+
+Iron Knight:
+  Description:
+    - A heavily armored warrior clad in dark steel
+  Prompts:
+    - "full plate armor, dark steel, battle-scarred, imposing stance, glowing eyes behind visor"
+    - "medieval knight, ornate black armor, red cape, sword drawn, battle ready"
+  Tags:
+    - warrior
+    - knight
+    - male
+    - armored
+    - dark
+  Prefix:
+    - "epic fantasy,"
+  Suffix:
+    - ", detailed armor textures"
+
+Shadow Assassin:
+  Description:
+    - A stealthy figure cloaked in darkness
+  Prompts:
+    - "hooded figure, dark leather armor, twin daggers, shadows swirling, mysterious"
+    - "ninja silhouette, black cloth wrappings, crouched pose, moonlit rooftop"
+  Tags:
+    - warrior
+    - assassin
+    - stealthy
+    - dark
+  Prefix:
+    - "cinematic,"
+
+Elven Archer:
+  Description:
+    - A graceful elf with a masterwork bow
+  Prompts:
+    - "elven features, pointed ears, ornate bow, forest camouflage, silver hair"
+    - "wood elf ranger, green cloak, quiver of arrows, alert stance, forest background"
+  Tags:
+    - warrior
+    - elf
+    - archer
+    - nature
+    - light
+
+Storm Mage:
+  Description:
+    - A powerful sorcerer commanding lightning
+  Prompts:
+    - "robed wizard, crackling electricity, floating, storm clouds, glowing runes"
+    - "lightning mage, electric aura, dramatic pose, thunderstorm background, intense expression"
+  Tags:
+    - mage
+    - elemental
+    - storm
+    - powerful
+  Suffix:
+    - ", volumetric lighting, particle effects"
+
+Frost Witch:
+  Description:
+    - An ice sorceress of the frozen north
+  Prompts:
+    - "pale skin, ice blue eyes, frost magic, snowflakes swirling, elegant robes"
+    - "winter sorceress, crystalline staff, frozen throne, aurora borealis background"
+  Tags:
+    - mage
+    - elemental
+    - ice
+    - female
+    - cold
+  Prefix:
+    - "fantasy illustration,"
+
+Nature Druid:
+  Description:
+    - A guardian of the wild places
+  Prompts:
+    - "antler crown, living vines, moss-covered robes, glowing green eyes, forest spirit"
+    - "druid shapeshifter, animal companions, ancient grove, mystical atmosphere"
+  Tags:
+    - mage
+    - nature
+    - druid
+    - peaceful
+

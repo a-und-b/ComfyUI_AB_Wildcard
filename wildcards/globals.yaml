@@ -1,0 +1,11 @@
+# Global Variables - These are automatically loaded into every prompt
+# Use them with $variable_name
+
+# Default quality settings
+quality: masterpiece, best quality, highly detailed
+
+# Style presets
+style_cinematic: cinematic composition, dramatic lighting, film grain
+style_anime: anime style, cel shaded, vibrant colors
+style_realistic: photorealistic, RAW photo, 8k uhd, DSLR
+

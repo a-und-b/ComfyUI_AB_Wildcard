@@ -1,0 +1,13 @@
+[project]
+name = "ab_wildcard"
+description = "Powerful wildcard text processor for ComfyUI with weighted selection, deep nesting, and tag aggregation"
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/a-und-b/ComfyUI_AB_Wildcard"
+
+[tool.comfy]
+PublisherId = "a-und-b"
+DisplayName = "AB Wildcard"
+Icon = ""

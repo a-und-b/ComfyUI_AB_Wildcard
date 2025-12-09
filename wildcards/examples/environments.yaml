@@ -1,0 +1,65 @@
+# Environment Cards - Locations and settings
+
+Cyberpunk Megacity:
+  Description:
+    - A sprawling neon-lit metropolis
+  Prompts:
+    - "towering skyscrapers, holographic advertisements, flying vehicles, rain-slicked streets"
+    - "dense urban sprawl, neon signs, crowded streets, smog-filled sky, futuristic architecture"
+  Tags:
+    - urban
+    - scifi
+    - cyberpunk
+    - night
+    - neon
+
+Ancient Forest:
+  Description:
+    - A primordial woodland untouched by civilization
+  Prompts:
+    - "massive ancient trees, dappled sunlight, moss-covered stones, mystical fog"
+    - "enchanted forest, bioluminescent plants, fairy lights, hidden pathways"
+  Tags:
+    - nature
+    - forest
+    - fantasy
+    - peaceful
+    - magical
+
+Volcanic Wasteland:
+  Description:
+    - A hellish landscape of fire and ash
+  Prompts:
+    - "rivers of lava, volcanic eruptions, ash clouds, cracked obsidian ground"
+    - "infernal realm, fire geysers, smoke pillars, orange sky, destruction"
+  Tags:
+    - elemental
+    - fire
+    - dangerous
+    - apocalyptic
+
+Underwater Kingdom:
+  Description:
+    - A magnificent realm beneath the waves
+  Prompts:
+    - "coral palace, bioluminescent creatures, underwater city, bubble streams"
+    - "sunken civilization, ancient architecture, schools of fish, caustic light patterns"
+  Tags:
+    - water
+    - fantasy
+    - underwater
+    - magical
+    - peaceful
+
+Floating Isles:
+  Description:
+    - Islands suspended in an endless sky
+  Prompts:
+    - "floating landmasses, waterfalls into clouds, rope bridges, airships"
+    - "sky archipelago, crystal formations, wind currents visible, sunrise lighting"
+  Tags:
+    - fantasy
+    - sky
+    - magical
+    - ethereal
+

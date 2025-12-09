@@ -1,0 +1,20 @@
+# Basic color list
+red
+blue
+green
+yellow
+purple
+orange
+pink
+cyan
+magenta
+teal
+gold
+silver
+bronze
+crimson
+navy
+emerald
+amber
+violet
+
