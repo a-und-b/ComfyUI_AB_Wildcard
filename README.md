@@ -2,7 +2,7 @@
 
 **A powerful text processing engine for ComfyUI prompts.**
 
-Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Tag Aggregation, Weighted Selection, and Deep Nesting. Lightweight and fast with no LLM, LoRA, or external API dependencies.
+Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Tag Aggregation, Weighted Selection, and Deep Nesting.
 
 ---
 
