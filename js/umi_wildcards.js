@@ -28,6 +28,18 @@ class AutoCompletePopup {
         this.items = [];
         this.selectedIndex = 0;
         this.onSelectCallback = null;
+
+        // Mouse interaction is delegated on the stable container element so it
+        // survives the per-render rebuild of the item <div>s.
+        //  - mousedown.preventDefault keeps the textarea focused (no blur to body)
+        //  - click performs the selection based on the item's data-ac-index
+        this.element.addEventListener("mousedown", (e) => e.preventDefault());
+        this.element.addEventListener("click", (e) => {
+            const item = e.target.closest("[data-ac-index]");
+            if (!item) return;
+            this.selectedIndex = parseInt(item.dataset.acIndex, 10);
+            this.triggerSelection();
+        });
     }
 
     show(x, y, options, onSelect) {
@@ -49,6 +61,9 @@ class AutoCompletePopup {
     }
 
     render() {
+        // Build the DOM structure ONCE. Hover only updates the highlight (see
+        // highlight()); never rebuild on mouseover, or the item being clicked
+        // gets destroyed mid-interaction and the click/focus is lost.
         this.element.innerHTML = "";
 
         // Header
@@ -57,8 +72,8 @@ class AutoCompletePopup {
             padding: "4px 8px", fontSize: "11px", color: "#888",
             borderBottom: "1px solid #333", backgroundColor: "#252525"
         });
-        header.innerText = this.items.length > 50 
-            ? `Showing 50 of ${this.items.length} matches...` 
+        header.innerText = this.items.length > 50
+            ? `Showing 50 of ${this.items.length} matches...`
             : `${this.items.length} Suggestions`;
         this.element.appendChild(header);
 
@@ -66,37 +81,38 @@ class AutoCompletePopup {
         this.items.slice(0, 50).forEach((opt, index) => {
             const div = document.createElement("div");
             div.innerText = opt;
-            
+            div.dataset.acIndex = index;
             Object.assign(div.style, {
                 cursor: "pointer", padding: "6px 10px",
                 borderBottom: "1px solid #2a2a2a", transition: "background 0.05s"
             });
+            div.onmouseover = () => {
+                this.selectedIndex = index;
+                this.highlight();   // update styling only, no DOM rebuild
+            };
+            this.element.appendChild(div);
+        });
 
+        this.highlight();
+    }
+
+    // Update selection styling + auto-scroll on the existing item <div>s.
+    highlight() {
+        this.element.querySelectorAll("[data-ac-index]").forEach((div) => {
+            const index = parseInt(div.dataset.acIndex, 10);
             if (index === this.selectedIndex) {
-                div.style.backgroundColor = "#2d4f6c"; 
+                div.style.backgroundColor = "#2d4f6c";
                 div.style.color = "#fff";
                 div.style.borderLeft = "3px solid #61afef";
             } else {
                 div.style.backgroundColor = "transparent";
+                div.style.color = "#e0e0e0";
                 div.style.borderLeft = "3px solid transparent";
             }
-            
-            div.onmouseover = () => {
-                this.selectedIndex = index;
-                this.render(); 
-            };
-            
-            div.onmousedown = (e) => {
-                e.preventDefault(); 
-                this.triggerSelection();
-            };
-            
-            this.element.appendChild(div);
         });
 
-        // Auto-Scroll
-        if (this.element.children[this.selectedIndex + 1]) {
-            const activeEl = this.element.children[this.selectedIndex + 1];
+        const activeEl = this.element.querySelector(`[data-ac-index="${this.selectedIndex}"]`);
+        if (activeEl) {
             if (activeEl.offsetTop < this.element.scrollTop) {
                 this.element.scrollTop = activeEl.offsetTop;
             } else if (activeEl.offsetTop + activeEl.offsetHeight > this.element.scrollTop + this.element.offsetHeight) {
@@ -113,7 +129,7 @@ class AutoCompletePopup {
         } else {
             this.selectedIndex = this.selectedIndex <= 0 ? max : this.selectedIndex - 1;
         }
-        this.render();
+        this.highlight();
     }
 
     triggerSelection() {
@@ -207,7 +223,7 @@ const HELP_STYLES = `
 
 const HELP_HTML = `
     <div class="umi-section">
-        <h3>🔌 Setup & Wiring (Lightweight)</h3>
+        <h3>Setup & Wiring (Lightweight)</h3>
         <p>Powerful wildcard text processor for ComfyUI prompts.</p>
         
         <div class="umi-grid-2">
@@ -231,16 +247,16 @@ const HELP_HTML = `
         </div>
         
          <div class="callout callout-warn">
-            <strong>⚠️ Note on Batch Size:</strong><br>
+            <strong>Note on Batch Size:</strong><br>
             Use the <strong>"Queue Batch"</strong> setting in the ComfyUI Extra Options menu to generate variations. Do not use the widget batch size on the Latent node.
         </div>
     </div>
 
     <div class="umi-section">
-        <h3>⚡ Syntax Cheat Sheet</h3>
+        <h3>Syntax Cheat Sheet</h3>
         <div class="umi-grid-2">
             <div>
-                <h4 style="margin-top:0">🎲 Dynamic Prompts</h4>
+                <h4 style="margin-top:0">Dynamic Prompts</h4>
                 <table class="umi-table">
                     <tr><td><span class="umi-code">{a|b}</span></td><td>Random choice.</td></tr>
                     <tr><td><span class="umi-code">{5::a|3::b|c}</span></td><td><strong>Weighted:</strong> a=5, b=3, c=1 probability.</td></tr>
@@ -252,7 +268,7 @@ const HELP_HTML = `
                 </table>
             </div>
             <div>
-                <h4 style="margin-top:0">🎛️ Tools & Logic</h4>
+                <h4 style="margin-top:0">Tools & Logic</h4>
                 <table class="umi-table">
                     <tr><td><span class="umi-code">$var={...}</span></td><td>Define variable.</td></tr>
                     <tr><td><span class="umi-code">[if K : A | B]</span></td><td>Logic Gate.</td></tr>
@@ -264,7 +280,7 @@ const HELP_HTML = `
     </div>
     
     <div class="umi-section">
-        <h3>📂 Creating Wildcards</h3>
+        <h3>Creating Wildcards</h3>
         <p>You can create your own lists in the <code>wildcards/</code> folder.</p>
         
         <div class="umi-grid-2">
@@ -305,7 +321,7 @@ function showHelpModal() {
         <div class="umi-help-content">
             <div class="umi-help-header">
                 <div>
-                    <h2>📘 AB Wildcard Reference Manual</h2>
+                    <h2>AB Wildcard Reference Manual</h2>
                 </div>
                 <button class="umi-help-close" onclick="this.closest('.umi-help-modal').remove()">CLOSE</button>
             </div>
@@ -482,7 +498,7 @@ app.registerExtension({
             if (getExtraMenuOptions) getExtraMenuOptions.apply(this, arguments);
             options.push(null);
             options.push({
-                content: "📘 Open AB Wildcard Guide",
+                content: "Open AB Wildcard Guide",
                 callback: () => { showHelpModal(); }
             });
         }
@@ -495,12 +511,12 @@ app.registerExtension({
             // ============================================================
             // NEW: REFRESH BUTTON WIDGET (WITH TOAST)
             // ============================================================
-            this.addWidget("button", "🔄 Refresh Wildcards", null, () => {
+            this.addWidget("button", "Refresh Wildcards", null, () => {
                 const btn = self.widgets.find(w => w.name.includes("Refresh"));
                 
                 // Visual feedback: Loading on Button (as fallback)
                 if(btn) {
-                    btn.name = "⏳ Refreshing...";
+                    btn.name = "Refreshing...";
                     app.canvas.setDirty(true);
                 }
                 
@@ -523,7 +539,7 @@ app.registerExtension({
 
                         // Reset button
                         if(btn) {
-                            btn.name = "🔄 Refresh Wildcards"; 
+                            btn.name = "Refresh Wildcards"; 
                             app.canvas.setDirty(true);
                         }
                     })
@@ -538,7 +554,7 @@ app.registerExtension({
                             });
                         }
                         if(btn) {
-                            btn.name = "❌ Error";
+                            btn.name = "Error";
                             app.canvas.setDirty(true);
                         }
                     });
@@ -573,14 +589,14 @@ app.registerExtension({
                 ta.dispatchEvent(new Event("input", { bubbles: true }));
             };
 
-            const wcWidget = self.addWidget("combo", "📄 Wildcards", WC_PH, (v) => {
+            const wcWidget = self.addWidget("combo", "Wildcards", WC_PH, (v) => {
                 if (v && v !== WC_PH) insertToken(`__${v}__`);
                 wcWidget.value = WC_PH;          // reset so the same entry can be re-picked
                 app.canvas?.setDirty?.(true, true);
             }, { values: [WC_PH] });
             wcWidget.serialize = false;
 
-            const tagWidget = self.addWidget("combo", "🏷 Tags", TAG_PH, (v) => {
+            const tagWidget = self.addWidget("combo", "Tags", TAG_PH, (v) => {
                 if (v && v !== TAG_PH) insertToken(`<[${v}]>`);
                 tagWidget.value = TAG_PH;
                 app.canvas?.setDirty?.(true, true);
