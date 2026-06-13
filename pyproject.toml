@@ -1,7 +1,7 @@
 [project]
 name = "ab_wildcard"
 description = "Simple node for advanced wildcard text processing. Supports variables, conditionals, tag aggregation, weighted selection, and deep nesting. Lightweight, fast, zero external dependencies."
-version = "1.0.1"
+version = "1.1.0"
 license = {file = "LICENSE"}
 
 [project.urls]
