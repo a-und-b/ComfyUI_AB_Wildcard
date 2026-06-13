@@ -363,6 +363,7 @@ app.registerExtension({
     name: "ABWildcard.System",
     async setup() {
         this.wildcards = [];
+        this.tags = [];
 
         // Define a function we can call later to refresh the lists
         this.fetchWildcards = async () => {
@@ -373,21 +374,103 @@ app.registerExtension({
                     
                     if (Array.isArray(data)) {
                         this.wildcards = data;
+                        this.tags = [];
                     } else {
                         this.wildcards = data.wildcards || [];
+                        this.tags = data.tags || [];
                     }
                 } else {
                     this.wildcards = [];
+                    this.tags = [];
                 }
             } catch (e) {
                 console.error("[UmiAI] Failed to load wildcards:", e);
                 this.wildcards = [];
+                this.tags = [];
             }
         };
 
         // Initial fetch
         await this.fetchWildcards();
         this.popup = new AutoCompletePopup();
+
+        // ============================================================
+        // AUTOCOMPLETE — document-level delegation.
+        // Works in BOTH renderers: we never bind to a specific widget element.
+        // In Nodes 2.0 (Vue) the user types into a Vue-rendered <textarea> while
+        // widget.element is an orphan, so binding per-element cannot work.
+        // Instead we listen on document and resolve the active textarea back to
+        // an ABWildcardNode at event time.
+        // ============================================================
+        const ext = this;
+
+        const resolveTextarea = (target) => {
+            if (!(target instanceof HTMLTextAreaElement)) return null;
+            // Nodes 2.0 (Vue): textarea lives inside a node carrying data-node-id
+            const nodeEl = target.closest("[data-node-id]");
+            if (nodeEl) {
+                const node = app.graph?.getNodeById?.(nodeEl.getAttribute("data-node-id"));
+                if (node && node.type === "ABWildcardNode") return target;
+            }
+            // Legacy renderer: widget.element is tagged at node creation
+            if (target.dataset && target.dataset.abWildcard === "1") return target;
+            return null;
+        };
+
+        // Navigation while the popup is open (capture phase to pre-empt defaults)
+        document.addEventListener("keydown", (e) => {
+            if (!ext.popup.visible) return;
+            if (!resolveTextarea(e.target)) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); ext.popup.navigate(1); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); ext.popup.navigate(-1); }
+            else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); ext.popup.triggerSelection(); }
+            else if (e.key === "Escape") { ext.popup.hide(); }
+        }, true);
+
+        // Typing -> show / filter the popup
+        document.addEventListener("keyup", (e) => {
+            if (["ArrowUp", "ArrowDown", "Enter", "Escape", "Tab"].includes(e.key)) return;
+            const inputEl = resolveTextarea(e.target);
+            if (!inputEl) return;
+
+            const cursor = inputEl.selectionStart;
+            const text = inputEl.value;
+            const beforeCursor = text.substring(0, cursor);
+            // Group 1: opener (__ or <[), Group 2: query
+            const matchFile = beforeCursor.match(/(__|<\[)([\w\/\-\s]*)$/);
+            if (!matchFile) { ext.popup.hide(); return; }
+
+            const opener = matchFile[1];
+            const query = matchFile[2];
+            const matchIndex = matchFile.index;
+            // <[ -> card Tags ; __ -> wildcards (files + card titles)
+            const source = (opener === "<[") ? (ext.tags || []) : (ext.wildcards || []);
+            const options = getFuzzyMatches(query, source);
+            if (!options.length) { ext.popup.hide(); return; }
+
+            const rect = inputEl.getBoundingClientRect();
+            const topOffset = rect.top + 20 + (rect.height / 2);
+            ext.popup.show(rect.left + 20, topOffset, options, (selected) => {
+                const completion = (opener === "<[") ? `<[${selected}]>` : `__${selected}__`;
+                const prefix = text.substring(0, matchIndex);
+                const suffix = text.substring(cursor);
+                inputEl.value = prefix + completion + suffix;
+                // Sync the widget value: assigning .value does NOT fire "input",
+                // so dispatch it. Both legacy and Vue (v-model) listen to "input".
+                inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+                const newCursorPos = (prefix + completion).length;
+                inputEl.setSelectionRange(newCursorPos, newCursorPos);
+                inputEl.focus();
+            });
+        }, true);
+
+        // Close on outside click
+        document.addEventListener("mousedown", (e) => {
+            if (ext.popup && ext.popup.element && e.target !== ext.popup.element
+                && !ext.popup.element.contains(e.target) && !resolveTextarea(e.target)) {
+                ext.popup.hide();
+            }
+        });
     },
 
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -462,113 +545,19 @@ app.registerExtension({
             });
 
             // ============================================================
-            // AUTOCOMPLETE LOGIC (WITH ARROW KEYS & FUZZY SEARCH)
+            // Tag the legacy <textarea> so the document-level autocomplete
+            // (registered once in setup()) recognizes it. In Nodes 2.0 the user
+            // types into a Vue-rendered textarea instead, which the delegation
+            // resolves via [data-node-id]; tagging the orphan legacy element
+            // there is harmless.
             // ============================================================
-            const textWidget = this.widgets.find(w => w.name === "text");
-            if (!textWidget || !textWidget.inputEl) return;
-
-            const inputEl = textWidget.inputEl;
-            const ext = app.extensions.find(e => e.name === "ABWildcard.System");
-
-            // 1. INTERCEPT NAVIGATION (Arrow Keys, Enter, Tab)
-            inputEl.addEventListener("keydown", (e) => {
-                if (ext.popup.visible) {
-                    if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        ext.popup.navigate(1); // Next
-                        return;
-                    } 
-                    if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        ext.popup.navigate(-1); // Prev
-                        return;
-                    }
-                    if (e.key === "Enter" || e.key === "Tab") {
-                        e.preventDefault();
-                        ext.popup.triggerSelection();
-                        return;
-                    }
-                    if (e.key === "Escape") {
-                        ext.popup.hide();
-                        return;
-                    }
-                }
-            });
-
-            // 2. LISTEN FOR TYPING (To show the popup)
-            inputEl.addEventListener("keyup", (e) => {
-                // Ignore nav keys in this listener to prevent flashing
-                if (["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(e.key)) return;
-
-                const cursor = inputEl.selectionStart;
-                const text = inputEl.value;
-                const beforeCursor = text.substring(0, cursor);
-
-                // Regex Config
-                // Group 1: Opener (__ or <[)
-                // Group 2: The query string
-                const matchFile = beforeCursor.match(/(__|<\[)([\w\/\-\s]*)$/); 
-
-                if (!ext) return;
-
-                let options = [];
-                let triggerType = ""; 
-                let matchIndex = 0;
-                let query = "";
-                let opener = "";
-
-                // -- Wildcard Logic --
-                if (matchFile) {
-                    triggerType = "file";
-                    opener = matchFile[1]; // Capture the opener (__ or <[)
-                    query = matchFile[2]; 
-                    matchIndex = matchFile.index;
-                    
-                    // FUZZY SEARCH IMPLEMENTATION
-                    options = getFuzzyMatches(query, ext.wildcards);
-                } 
-
-                if (triggerType && options.length > 0) {
-                    const rect = inputEl.getBoundingClientRect();
-                    const topOffset = rect.top + 20 + (rect.height / 2); // Approximate pos
-                    
-                    ext.popup.show(rect.left + 20, topOffset, options, (selected) => {
-                        let completion = "";
-                        
-                        // Smart Completion based on Opener
-                        if (triggerType === "file") {
-                            // If started with <[, close with ]>
-                            if (opener === "<[") {
-                                completion = `<[${selected}]>`;
-                            } else {
-                                completion = `__${selected}__`;
-                            }
-                        }
-
-                        const prefix = text.substring(0, matchIndex);
-                        const suffix = text.substring(cursor);
-                        
-                        inputEl.value = prefix + completion + suffix;
-                        
-                        // Notify ComfyUI of change
-                        if(textWidget.callback) textWidget.callback(inputEl.value);
-                        
-                        // Move cursor to end of inserted tag
-                        const newCursorPos = (prefix + completion).length;
-                        inputEl.setSelectionRange(newCursorPos, newCursorPos);
-                        inputEl.focus();
-                    });
-                } else {
-                    ext.popup.hide();
-                }
-            });
-
-            // Close on outside click
-            document.addEventListener("mousedown", (e) => {
-                if (ext && ext.popup && e.target !== ext.popup.element && !ext.popup.element.contains(e.target) && e.target !== inputEl) {
-                    ext.popup.hide();
-                }
-            });
+            const tagLegacyTextarea = (tries = 0) => {
+                const tw = self.widgets?.find(w => w.name === "text");
+                const el = tw && (tw.element || tw.inputEl);
+                if (el) { el.dataset.abWildcard = "1"; return; }
+                if (tries < 120) requestAnimationFrame(() => tagLegacyTextarea(tries + 1));
+            };
+            tagLegacyTextarea();
         };
     }
 });
