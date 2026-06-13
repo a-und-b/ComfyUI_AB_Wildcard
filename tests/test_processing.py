@@ -79,3 +79,21 @@ def test_tag_aggregation_still_works():
     """<[warrior]> resolves to a tagged card's prompt."""
     out = run("<[warrior]>", seed=2)
     assert out and "<[" not in out and "__" not in out
+
+
+def test_card_title_resolves_consistently_across_runs():
+    """Regression: a card title must resolve to a prompt on EVERY run, not only
+    the first. The GLOBAL_CACHE short-circuit in load_tags used to return the
+    cached title before build_index() ran, so a fresh TagLoader had an empty
+    yaml_entries and get_entry_details() fell back to the literal title."""
+    nodes.GLOBAL_CACHE.clear()
+    nodes.GLOBAL_INDEX.update({"built": False, "files": set(), "entries": {}})
+
+    first = run("__Iron Knight__", seed=1)
+    second = run("__Iron Knight__", seed=2)   # this run hits GLOBAL_CACHE
+
+    for label, out in (("first", first), ("second", second)):
+        assert "__" not in out, f"{label} run left the wildcard unresolved: {out!r}"
+        assert out.strip().lower() != "iron knight", \
+            f"{label} run fell back to the literal title: {out!r}"
+        assert "epic fantasy" in out, f"{label} run lost the card Prefix: {out!r}"

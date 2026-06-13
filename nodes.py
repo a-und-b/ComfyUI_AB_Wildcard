@@ -378,6 +378,12 @@ class TagLoader:
             self.build_index() # Ensure we have data
             return self.yaml_entries
 
+        # Build the card index on THIS instance before resolving — even on a
+        # GLOBAL_CACHE hit. Otherwise get_entry_details() (used to turn a card
+        # title into its prompt and to apply Prefix/Suffix) sees an empty
+        # yaml_entries and the card falls back to its literal title.
+        self.build_index()
+
         if requested_tag in GLOBAL_CACHE:
             return GLOBAL_CACHE[requested_tag]
         
@@ -473,10 +479,13 @@ class TagLoader:
         return fnmatch.filter(self.files_index, pattern)
 
     def get_entry_details(self, title):
-        # Fallback if entry is not in dict but index is built
-        if title and title.lower() in self.yaml_entries:
-            return self.yaml_entries[title.lower()]
-        return self.yaml_entries.get(title)
+        if not title:
+            return None
+        key = title.lower()
+        # Ensure the index is built (e.g. when reached after a GLOBAL_CACHE hit).
+        if key not in self.yaml_entries:
+            self.build_index()
+        return self.yaml_entries.get(key)
 
 class TagSelector:
     def __init__(self, tag_loader, options):
