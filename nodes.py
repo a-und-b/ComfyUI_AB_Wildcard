@@ -289,11 +289,11 @@ class TagLoader:
                     if self.is_umi_format(data):
                          for k, v in data.items():
                              new_index.add(k)
-                             # Store card data
+                             # Store card data. Index ALL cards by title (not only
+                             # tagged ones) so they resolve via __Card Title__.
                              if isinstance(v, dict):
                                  processed = self.process_yaml_entry(k, v)
-                                 if processed['tags']:
-                                     new_entries[k.lower()] = processed
+                                 new_entries[k.lower()] = processed
                     else:
                         flat_data = self.flatten_hierarchical_yaml(data)
                         for k in flat_data.keys():
@@ -456,6 +456,15 @@ class TagLoader:
 
                 except Exception as e:
                     if verbose: print(f'Error parsing YAML {found_file}: {e}')
+
+        # 4. Direct Umi card lookup by title (e.g. __Iron Knight__).
+        #    Cards are indexed by title in build_index; returning the title lets
+        #    the standard card machinery pick a prompt AND apply Prefix/Suffix.
+        self.build_index()
+        if lower_tag in self.yaml_entries:
+            title = self.yaml_entries[lower_tag]['title']
+            GLOBAL_CACHE[requested_tag] = [title]
+            return [title]
 
         return []
 
@@ -1205,11 +1214,13 @@ async def get_wildcards(request):
     loader = TagLoader(all_paths, options)
     loader.build_index()
     
-    # Get Wildcards
+    # Get Wildcards (files + card titles) and the set of card Tags
     wildcards = sorted(list(loader.files_index))
-    
+    tags = sorted({t for e in loader.yaml_entries.values() for t in e.get('tags', [])})
+
     return web.json_response({
-        "wildcards": wildcards
+        "wildcards": wildcards,
+        "tags": tags
     })
 
 @server.PromptServer.instance.routes.post("/ab_wildcard/refresh")
@@ -1228,9 +1239,11 @@ async def refresh_wildcards(request):
     loader.build_index() # Rebuild immediately
     
     wildcards = sorted(list(loader.files_index))
-    
+    tags = sorted({t for e in loader.yaml_entries.values() for t in e.get('tags', [])})
+
     return web.json_response({
-        "status": "success", 
+        "status": "success",
         "count": len(wildcards),
-        "wildcards": wildcards
+        "wildcards": wildcards,
+        "tags": tags
     })
