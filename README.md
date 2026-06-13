@@ -13,7 +13,9 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Variables** — Define once (`$var={...}`), reuse everywhere (`$var`)
 * **Conditional Logic** — `[if condition : true | false]` with AND/OR/NOT/XOR
 * **Tag Aggregation** — `<[Tag]>` to pick from YAML cards by tag
+* **Card by Title** — `__Card Name__` to pull a specific YAML card's prompt
 * **Global Presets** — Auto-load variables from `globals.yaml`
+* **In-node Helpers** — Autocomplete (type `__` / `<[`) + Wildcards/Tags dropdowns
 
 ---
 
@@ -36,6 +38,20 @@ This node is **pure text processing** — it takes text input and outputs proces
 | Output | Connect To |
 |--------|-----------|
 | `text` | CLIP Text Encode or any other text input |
+
+---
+
+## Finding Wildcards (Autocomplete & Dropdowns)
+
+Two ways to insert tokens without memorizing names:
+
+- **Autocomplete** — type `__` for wildcards/card titles, or `<[` for tags.
+  Navigate with arrow keys, accept with **Tab/Enter or mouse click**.
+- **Dropdowns** — the node's **Wildcards** and **Tags** combos insert the
+  matching token (`__name__` / `<[tag]>`) on selection.
+
+Works in both the classic and **Nodes 2.0 (Vue)** renderer. Use **Refresh
+Wildcards** after adding files.
 
 ---
 
@@ -98,6 +114,7 @@ Fire Mage:
 ```
 
 ```text
+__Fire Mage__           Pick a prompt from the "Fire Mage" card by name
 <[mage]>                Pick any entry tagged "mage"
 <[mage AND fire]>       Pick entry with both tags
 <[fire OR ice]>         Pick entry with either tag
@@ -196,8 +213,17 @@ __examples/lighting__,
 
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
-3. **Autocomplete** — Type `__` to trigger wildcard suggestions
+3. **Autocomplete** — Type `__` (wildcards/cards) or `<[` (tags); accept with Tab/Enter or click
 4. **Debug** — Check the console for processing errors
+
+---
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt   # pytest (runtime needs only pyyaml)
+pytest
+```
 
 ---
 
