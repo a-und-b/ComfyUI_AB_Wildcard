@@ -507,9 +507,9 @@ app.registerExtension({
                 fetch("/ab_wildcard/refresh", { method: "POST" })
                     .then(r => r.json())
                     .then(data => {
-                        // Re-fetch the autocomplete list in JS
+                        // Re-fetch the autocomplete list in JS, then refresh pickers
                         const ext = app.extensions.find(e => e.name === "ABWildcard.System");
-                        if(ext && ext.fetchWildcards) ext.fetchWildcards();
+                        if(ext && ext.fetchWildcards) ext.fetchWildcards().then(() => refreshPickers());
                         
                         // Use Modern Toast if available
                         if (app.extensionManager && app.extensionManager.toast) {
@@ -543,6 +543,58 @@ app.registerExtension({
                         }
                     });
             });
+
+            // ============================================================
+            // DROPDOWN PICKERS — click-to-insert alternative to autocomplete.
+            // Two non-serialized combos (Wildcards, Tags). Selecting an entry
+            // appends the matching token to the text widget via the same
+            // input-event sync path the autocomplete uses (works in both
+            // the legacy and Nodes 2.0 renderers).
+            // ============================================================
+            const ext = app.extensions.find(e => e.name === "ABWildcard.System");
+            const WC_PH = "insert…";
+            const TAG_PH = "insert…";
+
+            // Find the live, visible <textarea> for THIS node in either renderer.
+            const liveTextarea = () => {
+                const tw = self.widgets?.find(w => w.name === "text");
+                if (tw && tw.element && document.contains(tw.element)) return tw.element; // legacy
+                const nodeEl = document.querySelector(`[data-node-id="${self.id}"]`);     // Nodes 2.0
+                return nodeEl?.querySelector("textarea") || null;
+            };
+
+            const insertToken = (token) => {
+                const ta = liveTextarea();
+                if (!ta) return;
+                const cur = ta.value || "";
+                const sep = cur.trim().length && !/[\s,]$/.test(cur) ? ", " : "";
+                ta.value = cur + sep + token;
+                // Drives the widget value in both renderers (core listens to input).
+                ta.dispatchEvent(new Event("input", { bubbles: true }));
+            };
+
+            const wcWidget = self.addWidget("combo", "📄 Wildcards", WC_PH, (v) => {
+                if (v && v !== WC_PH) insertToken(`__${v}__`);
+                wcWidget.value = WC_PH;          // reset so the same entry can be re-picked
+                app.canvas?.setDirty?.(true, true);
+            }, { values: [WC_PH] });
+            wcWidget.serialize = false;
+
+            const tagWidget = self.addWidget("combo", "🏷 Tags", TAG_PH, (v) => {
+                if (v && v !== TAG_PH) insertToken(`<[${v}]>`);
+                tagWidget.value = TAG_PH;
+                app.canvas?.setDirty?.(true, true);
+            }, { values: [TAG_PH] });
+            tagWidget.serialize = false;
+
+            // Populate / refresh the picker lists from the extension's fetched data.
+            const refreshPickers = () => {
+                wcWidget.options.values = [WC_PH, ...((ext && ext.wildcards) || [])];
+                tagWidget.options.values = [TAG_PH, ...((ext && ext.tags) || [])];
+            };
+            refreshPickers();
+            // Catch the case where the initial fetch finishes after node creation.
+            setTimeout(refreshPickers, 500);
 
             // ============================================================
             // Tag the legacy <textarea> so the document-level autocomplete
