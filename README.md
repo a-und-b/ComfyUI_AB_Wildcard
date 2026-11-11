@@ -31,13 +31,21 @@ Restart ComfyUI.
 
 ---
 
-## Example workflow
+## Example workflows
 
-![Example workflow](example_workflows/ab-wildcard-preview.png)
+Both workflows are one AB Wildcard node plus ComfyUI's core **Preview as Text** node, and need no models.
 
-1. Load [`example_workflows/ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json).
-2. Edit the prompt text (try `{a|b}` choices or `__wildcard__` tokens).
-3. Queue the workflow and read the expanded `text` output.
+**Basic** — [`ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json): `{a|b}` choices.
+
+![Basic example workflow](example_workflows/ab-wildcard-preview.png)
+
+**Features** — [`ab-wildcard-features.json`](example_workflows/ab-wildcard-features.json): a variable, a tag pick from a YAML card (`<[warrior]>`), a conditional on the variable, and two bundled wildcard files.
+
+![Features example workflow](example_workflows/ab-wildcard-features-preview.png)
+
+1. Load a workflow file.
+2. Edit the prompt text.
+3. Queue it and read the expanded text in **Preview as Text**.
 
 ---
 
