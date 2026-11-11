@@ -104,3 +104,41 @@ def test_card_title_resolves_consistently_across_runs():
         assert out.strip().lower() != "iron knight", \
             f"{label} run fell back to the literal title: {out!r}"
         assert "epic fantasy" in out, f"{label} run lost the card Prefix: {out!r}"
+
+
+# --- CSV wildcards (issues #1, #3) ---
+
+import pytest
+
+
+@pytest.fixture
+def csv_wildcard(tmp_path, monkeypatch):
+    """Point the engine at a temp dir holding one CSV wildcard."""
+    def make(name, content):
+        (tmp_path / name).write_text(content, encoding="utf8")
+        monkeypatch.setattr(nodes, "get_all_wildcard_paths", lambda: [str(tmp_path)])
+        nodes.GLOBAL_CACHE.clear()
+        nodes.GLOBAL_INDEX.update({"built": False, "files": set(), "entries": {}})
+    yield make
+    nodes.GLOBAL_CACHE.clear()
+    nodes.GLOBAL_INDEX.update({"built": False, "files": set(), "entries": {}})
+
+
+def test_csv_row_sets_every_column_variable(csv_wildcard):
+    """#1: one $var=value per line, so all columns land in variables."""
+    csv_wildcard("test.csv", "color,shape,size\nred,circle,large\n")
+    assert run("__test__ $color $shape $size", seed=1) == "red circle large"
+
+
+def test_csv_values_may_contain_hash(csv_wildcard):
+    """#3: '#' inside a CSV value (hex colour) must not cut later columns."""
+    csv_wildcard("test.csv", "color,hex,shape\nred,deep red #FF0000,circle\n")
+    assert run("__test__ $color $hex $shape", seed=1) == "red deep red #FF0000 circle"
+
+
+def test_csv_token_mid_line_and_inline_comment_unchanged(csv_wildcard):
+    """Token after other text still sets the first column; plain lines still lose '# comments'."""
+    csv_wildcard("test.csv", "color,shape\nred,circle\n")
+    assert run("a __test__ $color $shape b", seed=1) == "a red circle b"
+    assert nodes.strip_inline_comment("hello # note") == "hello"
+    assert nodes.strip_inline_comment("\n$hex=#FF0000\nplain # c\n") == "\n$hex=#FF0000\nplain\n"

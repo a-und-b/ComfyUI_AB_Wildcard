@@ -28,6 +28,34 @@ def parse_tag(tag):
         return tag
     return tag
 
+# A "$name=value" line, as produced by CSV wildcard rows.
+ASSIGN_LINE_RE = re.compile(r'^\s*\$[A-Za-z0-9_]+\s*=')
+
+def csv_row_to_assignments(row):
+    """CSV row -> one '$col=value' per line.
+
+    The variable parser is line-anchored and a value runs to end of line, so the
+    block is wrapped in newlines: text before the token must not hide the first
+    assignment, text after it must not be swallowed by the last one.
+    """
+    return "\n" + "\n".join(f"${k.strip()}={v.strip()}" for k, v in row.items()) + "\n"
+
+def strip_inline_comment(text):
+    """Drop '#' comments line by line; '$name=value' lines keep any '#' in the value."""
+    if '#' not in text:
+        return text
+    out = []
+    has_assign = False
+    for line in text.split('\n'):
+        if ASSIGN_LINE_RE.match(line):
+            has_assign = True
+        else:
+            line = line.split('#')[0].rstrip()
+        out.append(line)
+    joined = '\n'.join(out)
+    # An assignment block keeps its wrapping newlines (see csv_row_to_assignments).
+    return joined if has_assign else joined.strip()
+
 def read_file_lines(file):
     f_lines = file.read().splitlines()
     lines = []
@@ -566,11 +594,7 @@ class TagSelector:
 
     def get_tag_choice(self, parsed_tag, tags):
         if isinstance(tags, list) and len(tags) > 0 and isinstance(tags[0], dict):
-            row = random.choice(tags)
-            vars_out = []
-            for k, v in row.items():
-                vars_out.append(f"${k.strip()}={v.strip()}")
-            return " ".join(vars_out)
+            return csv_row_to_assignments(random.choice(tags))
 
         if not isinstance(tags, list):
             return ""
@@ -705,10 +729,7 @@ class TagSelector:
             idx = self.global_seed % len(tags)
             selected = tags[idx]
             if isinstance(selected, dict):
-                 vars_out = []
-                 for k, v in selected.items():
-                     vars_out.append(f"${k.strip()}={v.strip()}")
-                 return " ".join(vars_out)
+                 return csv_row_to_assignments(selected)
             if '#' in selected:
                 selected = selected.split('#')[0].strip()
             return self.resolve_wildcard_recursively(selected, self.global_seed)
@@ -765,9 +786,9 @@ class TagReplacer:
                 selected = self.tag_selector.select(match)
         
         if selected is not None:
-            if isinstance(selected, str) and '#' in selected:
-                selected = selected.split('#')[0].strip()
-            return str(selected) 
+            if isinstance(selected, str):
+                selected = strip_inline_comment(selected)
+            return str(selected)
             
         return matches.group(0)
 
