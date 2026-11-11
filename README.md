@@ -33,7 +33,7 @@ Restart ComfyUI.
 
 ## Example workflows
 
-Both workflows are one AB Wildcard node plus ComfyUI's core **Preview as Text** node, and need no models.
+The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models.
 
 **Basic** — [`ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json): `{a|b}` choices.
 
@@ -42,6 +42,8 @@ Both workflows are one AB Wildcard node plus ComfyUI's core **Preview as Text** 
 **Features** — [`ab-wildcard-features.json`](example_workflows/ab-wildcard-features.json): a variable, a tag pick from a YAML card (`<[warrior]>`), a conditional on the variable, and two bundled wildcard files.
 
 ![Features example workflow](example_workflows/ab-wildcard-features-preview.png)
+
+**Cascade** — [`ab-wildcard-cascade.json`](example_workflows/ab-wildcard-cascade.json): a variable set from a tag query and fed into a second query (`$shade = <[ $test and Shade]>`), using [`color-shades.yaml`](wildcards/examples/color-shades.yaml).
 
 1. Load a workflow file.
 2. Edit the prompt text.
@@ -163,6 +165,7 @@ wildcards/
 ├── colors.txt            # Simple text list
 ├── styles.txt
 ├── examples/
+│   ├── color-shades.yaml # Cards for the cascade example
 │   ├── characters.yaml   # YAML cards with Tags
 │   └── environments.yaml
 └── PROMPT_TEMPLATES.txt  # Example prompts

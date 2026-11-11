@@ -1,0 +1,78 @@
+# Basic color list
+Color:
+  Prompts:
+    - "red"
+    - "blue"
+    - "green"
+    - "yellow"
+    - "purple"
+    - "orange"
+    - "gray"
+  Tags:
+    - Color
+
+Shades Of Red:
+  Prompts:
+    - "crimson"
+    - "pink"
+    - "magenta"
+    - "red"
+  Tags:
+    - Shade
+    - Red
+
+Shades Of Blue:
+  Prompts:
+    - "teal"
+    - "cyan"
+    - "navy"
+    - "blue"
+  Tags:
+    - Shade
+    - Blue
+
+Shades Of Green:
+  Prompts:
+    - "teal"
+    - "emerald"
+    - "green"
+  Tags:
+    - Shade
+    - Green
+
+Shades Of Yellow:
+  Prompts:
+    - "amber"
+    - "gold"
+    - "yellow"
+  Tags:
+    - Shade
+    - Yellow
+
+Shades Of Purple:
+  Prompts:
+    - "magenta"
+    - "violet"
+    - "purple"
+  Tags:
+    - Shade
+    - Purple
+
+Shades Of Orange:
+  Prompts:
+    - "amber"
+    - "bronze"
+    - "orange"
+  Tags:
+    - Shade
+    - Orange
+
+Shades Of Gray:
+  Prompts:
+    - "white"
+    - "black"
+    - "silver"
+    - "gray"
+  Tags:
+    - Shade
+    - Gray
