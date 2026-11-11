@@ -553,7 +553,8 @@ class TagSelector:
         tokens = re.split(r'(\(|\)|\bAND\b|\bOR\b|\bNOT\b|\bXOR\b)', clean_criteria, flags=re.IGNORECASE)
         
         expression_tokens = []
-        candidate_context = " ".join(candidate_tags).lower()
+        # Whole-tag comparison: a substring test made "male" match "female".
+        candidate_set = {str(t).strip().lower() for t in candidate_tags}
 
         for token in tokens:
             token = token.strip()
@@ -581,13 +582,13 @@ class TagSelector:
                 # Standard Variable Resolution (e.g. $type)
                 elif token.startswith('$') and token[1:] in self.variables:
                     token_val = str(self.variables[token[1:]])
-                    exists = token_val.lower() in candidate_context
+                    exists = token_val.strip().lower() in candidate_set
                     expression_tokens.append(str(exists))
                 
                 # Standard Text Search
                 else:
                     clean_token = token.replace('[','').replace(']','').strip()
-                    exists = clean_token.lower() in candidate_context
+                    exists = clean_token.lower() in candidate_set
                     expression_tokens.append(str(exists))
 
         return self.evaluator.evaluate(expression_tokens)
@@ -1067,6 +1068,8 @@ class VariableReplacer:
         # FIX: Updated Regex to be Multiline Anchored and more robust for values
         self.assign_regex = re.compile(r'^\$([a-zA-Z0-9_]+)\s*=\s*(.*?)$', re.MULTILINE)
         self.use_regex = re.compile(r'\$([a-zA-Z0-9_]+)((?:\.[a-zA-Z_]+)*)')
+        # Same head shape as ConditionalReplacer.regex: "[if <condition> :"
+        self.if_head_regex = re.compile(r'\[if\s+[^:|\]]+?\s*:', re.IGNORECASE)
         self.variables = {}
 
     def load_globals(self, globals_dict):
@@ -1114,7 +1117,16 @@ class VariableReplacer:
                         
             return value
             
-        return self.use_regex.sub(_replace_use, text)
+        # Leave the condition head of "[if $var : ...]" alone: ConditionalReplacer
+        # checks the variable itself, and substituting its value first turned the
+        # check into a text search that only passed if the value appeared elsewhere.
+        out, last = [], 0
+        for m in self.if_head_regex.finditer(text):
+            out.append(self.use_regex.sub(_replace_use, text[last:m.start()]))
+            out.append(m.group(0))
+            last = m.end()
+        out.append(self.use_regex.sub(_replace_use, text[last:]))
+        return "".join(out)
 
 # ==============================================================================
 # NODE DEFINITION

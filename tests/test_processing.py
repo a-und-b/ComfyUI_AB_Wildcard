@@ -142,3 +142,56 @@ def test_csv_token_mid_line_and_inline_comment_unchanged(csv_wildcard):
     assert run("a __test__ $color $shape b", seed=1) == "a red circle b"
     assert nodes.strip_inline_comment("hello # note") == "hello"
     assert nodes.strip_inline_comment("\n$hex=#FF0000\nplain # c\n") == "\n$hex=#FF0000\nplain\n"
+
+
+# --- Tag matching is exact, not substring (issue #5) ---
+
+CARDS = """\
+Alice:
+  Prompts:
+    - "alice prompt"
+  Tags:
+    - female
+    - image
+Bob:
+  Prompts:
+    - "bob prompt"
+  Tags:
+    - male
+    - mage
+"""
+
+
+def test_tag_match_is_not_substring(csv_wildcard):
+    """#5: <[male]> must never pick the 'female' card, <[mage]> never 'image'."""
+    csv_wildcard("cards.yaml", CARDS)
+    for seed in range(1, 25):
+        assert run("<[male]>", seed=seed) == "bob prompt"
+        assert run("<[mage]>", seed=seed) == "bob prompt"
+        assert run("<[male AND mage]>", seed=seed) == "bob prompt"
+        assert run("<[female OR male]>", seed=seed) in {"alice prompt", "bob prompt"}
+
+
+def test_tag_match_is_case_insensitive(csv_wildcard):
+    csv_wildcard("cards.yaml", CARDS)
+    assert run("<[MALE]>", seed=1) == "bob prompt"
+
+
+# --- Variables in [if ...] conditions are checked, not text-substituted (issue #4) ---
+
+def test_if_on_defined_variable_is_true():
+    assert run("$a = x\n[if $a : yes|no]") == "yes"
+
+
+def test_if_on_undefined_variable_is_false():
+    assert run("[if $nope : yes|no]") == "no"
+
+
+def test_if_variable_does_not_depend_on_its_value_appearing_in_text():
+    """The value 'I exist' appears nowhere else in the prompt; the check must still pass."""
+    assert run("$v = I exist\nfoo [if $v : found|missing]") == "foo found"
+
+
+def test_if_equality_and_plain_usage_still_work():
+    assert run("$a = x\n$a [if $a=x : y|n] [if $a=z : y|n]") == "x y n"
+    assert run("$q = qq\n[if $q : the text $q was found]") == "the text qq was found"
