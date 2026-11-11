@@ -713,7 +713,9 @@ class TagSelector:
                 selected = selected.split('#')[0].strip()
             return self.resolve_wildcard_recursively(selected, self.global_seed)
 
-        if groups:
+        # No tags loaded -> not a wildcard; None keeps the token literal
+        # (e.g. <lora:name:0.8> must survive instead of collapsing to "").
+        if groups and tags:
             return self.get_tag_group_choice(parsed_tag, groups, tags)
         if tags:
             return self.get_tag_choice(parsed_tag, tags)
@@ -1105,8 +1107,23 @@ class ABWildcardNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "dynamicPrompts": False}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "tooltip": "Prompt text with __wildcard__ and {a|b} syntax",
+                    },
+                ),
+                "seed": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xffffffffffffffff,
+                        "tooltip": "RNG seed for reproducible wildcard expansion",
+                    },
+                ),
             }
         }
 
@@ -1115,6 +1132,10 @@ class ABWildcardNode:
     FUNCTION = "process"
     CATEGORY = "AB Utils"
     COLOR = "#322947"
+    DESCRIPTION = (
+        "Expands wildcards, weight syntax, and dynamic prompt options into a "
+        "final prompt string. Supports autocomplete in the UI."
+    )
 
     # --- SAFETY HELPER ---
     def get_val(self, kwargs, key, default, value_type=None):

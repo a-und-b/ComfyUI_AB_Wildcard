@@ -81,6 +81,13 @@ def test_tag_aggregation_still_works():
     assert out and "<[" not in out and "__" not in out
 
 
+def test_lora_style_tags_stay_literal():
+    """<lora:name:0.8> is not a wildcard: it must pass through untouched
+    instead of being swallowed by the <scope:opts> tag-group path."""
+    assert run("a cat <lora:myStyle:0.8>, sitting") == "a cat <lora:myStyle:0.8>, sitting"
+    assert run("<embedding:bar> <hypernet:foo:0.5>") == "<embedding:bar> <hypernet:foo:0.5>"
+
+
 def test_card_title_resolves_consistently_across_runs():
     """Regression: a card title must resolve to a prompt on EVERY run, not only
     the first. The GLOBAL_CACHE short-circuit in load_tags used to return the

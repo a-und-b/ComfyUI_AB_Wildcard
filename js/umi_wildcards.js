@@ -376,7 +376,7 @@ function getFuzzyMatches(query, allItems) {
 }
 
 app.registerExtension({
-    name: "ABWildcard.System",
+    name: "a-und-b.ABWildcard.System",
     async setup() {
         this.wildcards = [];
         this.tags = [];
@@ -400,7 +400,7 @@ app.registerExtension({
                     this.tags = [];
                 }
             } catch (e) {
-                console.error("[UmiAI] Failed to load wildcards:", e);
+                console.error("[ABWildcard] Failed to load wildcards:", e);
                 this.wildcards = [];
                 this.tags = [];
             }
@@ -511,12 +511,15 @@ app.registerExtension({
             // ============================================================
             // NEW: REFRESH BUTTON WIDGET (WITH TOAST)
             // ============================================================
-            this.addWidget("button", "Refresh Wildcards", null, () => {
+            const refreshBtn = this.addWidget("button", "Refresh Wildcards", null, () => {
                 const btn = self.widgets.find(w => w.name.includes("Refresh"));
                 
-                // Visual feedback: Loading on Button (as fallback)
+                // Visual feedback: Loading on Button (as fallback).
+                // Set both name and label: legacy LiteGraph reads `name`,
+                // Nodes 2.0 (Vue) prefers `label` when present.
                 if(btn) {
                     btn.name = "Refreshing...";
+                    btn.label = "Refreshing...";
                     app.canvas.setDirty(true);
                 }
                 
@@ -524,7 +527,7 @@ app.registerExtension({
                     .then(r => r.json())
                     .then(data => {
                         // Re-fetch the autocomplete list in JS, then refresh pickers
-                        const ext = app.extensions.find(e => e.name === "ABWildcard.System");
+                        const ext = app.extensions.find(e => e.name === "a-und-b.ABWildcard.System");
                         if(ext && ext.fetchWildcards) ext.fetchWildcards().then(() => refreshPickers());
                         
                         // Use Modern Toast if available
@@ -539,12 +542,13 @@ app.registerExtension({
 
                         // Reset button
                         if(btn) {
-                            btn.name = "Refresh Wildcards"; 
+                            btn.name = "Refresh Wildcards";
+                            btn.label = "Refresh Wildcards";
                             app.canvas.setDirty(true);
                         }
                     })
                     .catch(e => {
-                        console.error("[UmiAI] Refresh failed", e);
+                        console.error("[ABWildcard] Refresh failed", e);
                          if (app.extensionManager && app.extensionManager.toast) {
                             app.extensionManager.toast.add({
                                 severity: "error",
@@ -555,10 +559,12 @@ app.registerExtension({
                         }
                         if(btn) {
                             btn.name = "Error";
+                            btn.label = "Error";
                             app.canvas.setDirty(true);
                         }
                     });
             });
+            if (refreshBtn) refreshBtn.label = "Refresh Wildcards";
 
             // ============================================================
             // DROPDOWN PICKERS — click-to-insert alternative to autocomplete.
@@ -567,7 +573,7 @@ app.registerExtension({
             // input-event sync path the autocomplete uses (works in both
             // the legacy and Nodes 2.0 renderers).
             // ============================================================
-            const ext = app.extensions.find(e => e.name === "ABWildcard.System");
+            const ext = app.extensions.find(e => e.name === "a-und-b.ABWildcard.System");
             const WC_PH = "insert…";
             const TAG_PH = "insert…";
 
