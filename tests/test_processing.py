@@ -195,3 +195,27 @@ def test_if_variable_does_not_depend_on_its_value_appearing_in_text():
 def test_if_equality_and_plain_usage_still_work():
     assert run("$a = x\n$a [if $a=x : y|n] [if $a=z : y|n]") == "x y n"
     assert run("$q = qq\n[if $q : the text $q was found]") == "the text qq was found"
+
+
+# --- A variable can feed a tag query in a later assignment (issue #6) ---
+
+CASCADE = """\
+Color:
+  Prompts: ["red", "blue"]
+  Tags: [Color]
+Red Shade:
+  Prompts: ["crimson"]
+  Tags: [Shade, Red]
+Blue Shade:
+  Prompts: ["navy"]
+  Tags: [Shade, Blue]
+"""
+
+
+def test_variable_feeds_tag_query_in_later_assignment(csv_wildcard):
+    csv_wildcard("colors.yaml", CASCADE)
+    for seed in range(8):
+        out = run("$c = <[color]>\n$s = <[ $c and Shade]>\n$s", seed=seed)
+        assert out in ("crimson", "navy")
+        # the shade must belong to the color that was drawn
+        assert run("$c = <[color]>\n$s = <[ $c and Shade]>\n$c $s", seed=seed) in ("red crimson", "blue navy")

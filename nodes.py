@@ -1241,6 +1241,9 @@ class ABWildcardNode:
         previous_prompt = ""
         iterations = 0
         tag_selector.clear_seeded_values()
+        # Share the live dict up front: an assignment like "$b = <[ $a and Shade]>"
+        # is resolved inside store_variables, before the loop body syncs it.
+        tag_selector.update_variables(variable_replacer.variables)
 
         while previous_prompt != prompt and iterations < 50:
             previous_prompt = prompt
