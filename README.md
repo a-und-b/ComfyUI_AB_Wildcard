@@ -31,6 +31,16 @@ Restart ComfyUI.
 
 ---
 
+## Example workflow
+
+![Example workflow](example_workflows/ab-wildcard-preview.png)
+
+1. Load [`example_workflows/ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json).
+2. Edit the prompt text (try `{a|b}` choices or `__wildcard__` tokens).
+3. Queue the workflow and read the expanded `text` output.
+
+---
+
 ## Wiring
 
 This node is **pure text processing** — it takes text input and outputs processed text.
