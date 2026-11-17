@@ -312,3 +312,11 @@ def test_sequence_file_multi_select_for_combo_and_deck(csv_wildcard):
     for s in (0, 1, 2):
         got += run("__!1$$col__", seed=s).split(", ")
     assert sorted(got) == ["blue", "green", "red"]
+
+
+# --- endpoint: globals.yaml variable names for the frontend ---
+
+def test_endpoint_lists_global_variable_names(csv_wildcard):
+    csv_wildcard("globals.yaml", "style: noir\nmood: calm\n")
+    loader = nodes.TagLoader(nodes.get_all_wildcard_paths(), {'ignore_paths': True, 'verbose': False})
+    assert nodes._global_names(loader) == ["mood", "style"]

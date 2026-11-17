@@ -1366,6 +1366,10 @@ class ABWildcardNode:
 # API ENDPOINTS
 # ==============================================================================
 
+def _global_names(loader):
+    """Names (not values) of the variables globals.yaml defines, for the frontend."""
+    return sorted(loader.load_globals())
+
 @server.PromptServer.instance.routes.get("/ab_wildcard/wildcards")
 async def get_wildcards(request):
     all_paths = get_all_wildcard_paths()
@@ -1379,7 +1383,8 @@ async def get_wildcards(request):
 
     return web.json_response({
         "wildcards": wildcards,
-        "tags": tags
+        "tags": tags,
+        "globals": _global_names(loader)
     })
 
 @server.PromptServer.instance.routes.post("/ab_wildcard/refresh")
@@ -1404,5 +1409,6 @@ async def refresh_wildcards(request):
         "status": "success",
         "count": len(wildcards),
         "wildcards": wildcards,
-        "tags": tags
+        "tags": tags,
+        "globals": _global_names(loader)
     })
