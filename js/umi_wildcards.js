@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { installHighlighter } from "./ab_highlight.js";
 
 // =============================================================================
 // PART 1: AUTOCOMPLETE LOGIC (Enhanced with Fuzzy Search)
@@ -394,6 +395,7 @@ app.registerExtension({
                     } else {
                         this.wildcards = data.wildcards || [];
                         this.tags = data.tags || [];
+                        this.globals = data.globals || [];
                     }
                 } else {
                     this.wildcards = [];
@@ -404,6 +406,7 @@ app.registerExtension({
                 this.wildcards = [];
                 this.tags = [];
             }
+            if (this.highlighter) this.highlighter.repaintAll();
         };
 
         // Initial fetch
@@ -432,6 +435,12 @@ app.registerExtension({
             if (target.dataset && target.dataset.abWildcard === "1") return target;
             return null;
         };
+
+        // Syntax highlighting + diagnostics overlay (js/ab_highlight.js)
+        this.highlighter = installHighlighter({
+            resolveTextarea,
+            getKnown: () => ({ wildcards: ext.wildcards, tags: ext.tags, globals: ext.globals }),
+        });
 
         // Navigation while the popup is open (capture phase to pre-empt defaults)
         document.addEventListener("keydown", (e) => {
