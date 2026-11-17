@@ -219,3 +219,96 @@ def test_variable_feeds_tag_query_in_later_assignment(csv_wildcard):
         assert out in ("crimson", "navy")
         # the shade must belong to the color that was drawn
         assert run("$c = <[color]>\n$s = <[ $c and Shade]>\n$c $s", seed=seed) in ("red crimson", "blue navy")
+
+
+# --- Sequence features (1.2.0): stepping through options with the seed ---
+# Set the seed widget to "increment" and every run takes the next step.
+
+from itertools import product
+
+
+def test_tilde_keeps_old_behaviour():
+    """{~...} stays as it was: option number (seed mod count)."""
+    assert [run("{~a|b|c}", seed=s) for s in range(6)] == ["a", "b", "c", "a", "b", "c"]
+
+
+def test_combo_enumerates_every_combination_once():
+    """{@...} blocks count like an odometer: the first one turns fastest,
+    and n1*n2 consecutive seeds give every combination exactly once."""
+    outs = [run("{@a|b} {@x|y|z}", seed=s) for s in range(6)]
+    assert outs == ["a x", "b x", "a y", "b y", "a z", "b z"]
+    # Plain {~} with sizes 2 and 4 would miss half the pairs; {@} doesn't.
+    pairs = {run("{@a|b} {@1|2|3|4}", seed=s) for s in range(100, 108)}
+    assert pairs == {f"{l} {n}" for l, n in product("ab", "1234")}
+
+
+def test_combo_wraps_around():
+    assert run("{@a|b} {@x|y|z}", seed=6) == run("{@a|b} {@x|y|z}", seed=0)
+
+
+def test_deck_uses_each_option_once_per_round():
+    """{!...} shuffles the options once per round of n runs: no repeats inside a round."""
+    opts = ["a", "b", "c", "d", "e"]
+    text = "{!" + "|".join(opts) + "}"
+    for round_no in range(4):
+        seeds = range(round_no * 5, round_no * 5 + 5)
+        assert sorted(run(text, seed=s) for s in seeds) == opts
+    # reproducible
+    assert run(text, seed=7) == run(text, seed=7)
+    # rounds aren't all the same order
+    orders = {tuple(run(text, seed=r * 5 + i) for i in range(5)) for r in range(6)}
+    assert len(orders) > 1
+
+
+def test_sequential_multi_select_takes_consecutive_groups():
+    """{~2$$...} takes options in order, two at a time."""
+    outs = [run("{~2$$a|b|c|d}", seed=s) for s in range(3)]
+    assert outs == ["a, b", "c, d", "a, b"]
+    assert run("{~2$$ and $$a|b|c|d}", seed=1) == "c and d"
+
+
+def test_sequence_modes_on_wildcard_files(csv_wildcard):
+    csv_wildcard("col.txt", "red\ngreen\nblue\n")
+    assert [run("__~col__", seed=s) for s in range(4)] == ["red", "green", "blue", "red"]
+    assert [run("__~2$$col__", seed=s) for s in range(3)] == ["red, green", "blue, red", "green, blue"]
+    assert sorted(run("__!col__", seed=s) for s in range(3, 6)) == ["blue", "green", "red"]
+    combos = {run("__@col__ {@x|y}", seed=s) for s in range(6)}
+    assert combos == {f"{c} {v}" for c, v in product(["red", "green", "blue"], "xy")}
+
+
+def test_sequence_modes_do_not_disturb_other_random_picks():
+    """Adding a {@}/{!} block must not change what plain {a|b|c} blocks pick."""
+    plain = "{p|q|r|s} {1|2|3|4|5}"
+    for s in range(10):
+        with_seq = run("{@a|b} " + plain, seed=s).split(" ", 1)[1]
+        with_deck = run("{!a|b|c} " + plain, seed=s).split(" ", 1)[1]
+        assert with_seq == run(plain, seed=s) == with_deck
+
+
+# --- $$ after @ and ! picks a group instead of silently falling back to random ---
+
+def test_deck_multi_select_covers_every_option_per_round():
+    """{!2$$a|b|c|d}: two runs of two options use all four options exactly once."""
+    for rnd in range(4):
+        got = []
+        for s in (rnd * 2, rnd * 2 + 1):
+            got += run("{!2$$a|b|c|d}", seed=s).split(", ")
+        assert sorted(got) == ["a", "b", "c", "d"]
+    assert run("{!2$$a|b|c|d}", seed=5) == run("{!2$$a|b|c|d}", seed=5)
+
+
+def test_combo_multi_select_is_a_window_that_moves_with_the_counter():
+    """{@2$$a|b|c}: window of two starting at the counter, first block turns fastest."""
+    assert [run("{@2$$a|b|c}", seed=s) for s in range(4)] == ["a, b", "b, c", "c, a", "a, b"]
+    assert run("{@2$$ and $$a|b|c}", seed=1) == "b and c"
+    outs = {run("{@2$$a|b|c} {@x|y}", seed=s) for s in range(6)}
+    assert len(outs) == 6
+
+
+def test_sequence_file_multi_select_for_combo_and_deck(csv_wildcard):
+    csv_wildcard("col.txt", "red\ngreen\nblue\n")
+    assert [run("__@2$$col__", seed=s) for s in range(3)] == ["red, green", "green, blue", "blue, red"]
+    got = []
+    for s in (0, 1, 2):
+        got += run("__!1$$col__", seed=s).split(", ")
+    assert sorted(got) == ["blue", "green", "red"]

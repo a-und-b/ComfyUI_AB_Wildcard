@@ -87,6 +87,74 @@ def parse_wildcard_range(range_str, num_variants):
     except:
         return 1, 1
 
+class SequenceContext:
+    """Ordered (non-random) picks for one node run, all derived from the seed.
+
+    Nothing is remembered between runs: with the seed widget set to
+    "increment", each queued run simply takes the next step. That keeps
+    ComfyUI's caching and "same seed = same prompt" intact.
+
+      ~  step:   option (seed mod n)                      {~a|b|c}
+      @  combo:  odometer over every @ block in the prompt {@a|b} {@x|y|z}
+                 (first block turns fastest; n1*n2*... runs = every combination once)
+      !  deck:   shuffled order, each option once per round of n runs
+      ~k$$      window: k options in a row, next k on the next run
+
+    Uses its own RNG for the deck so the global random stream (used by every
+    plain {a|b} block) is never consumed.
+    """
+
+    def __init__(self, seed):
+        try:
+            self.seed = abs(int(seed))
+        except (TypeError, ValueError):
+            self.seed = 0
+        self.stride = 1
+
+    def step(self, n):
+        return self.seed % n if n > 0 else 0
+
+    def combo(self, n):
+        if n <= 0:
+            return 0
+        idx = (self.seed // self.stride) % n
+        self.stride *= n
+        return idx
+
+    def deck_at(self, position, n, salt=""):
+        """Option at a position of the endless stream of shuffled rounds."""
+        cycle, pos = divmod(position, n)
+        order = list(range(n))
+        random.Random(f"ab_deck|{cycle}|{salt}").shuffle(order)
+        return order[pos]
+
+    def deck(self, n, salt=""):
+        return self.deck_at(self.seed, n, salt) if n > 0 else 0
+
+    def window(self, n, count, mode='~', salt=""):
+        """k option indexes for one block: ~ next k in order, @ k from the combo
+        counter, ! next k from the shuffled rounds (a group can span two rounds
+        when k does not divide n)."""
+        if n <= 0 or count <= 0:
+            return []
+        count = min(count, n)
+        if mode == '!':
+            return [self.deck_at(self.seed * count + i, n, salt) for i in range(count)]
+        start = self.combo(n) if mode == '@' else (self.seed * count) % n
+        return [(start + i) % n for i in range(count)]
+
+    def pick_index(self, mode, n, salt=""):
+        if mode == '@':
+            return self.combo(n)
+        if mode == '!':
+            return self.deck(n, salt)
+        return self.step(n)
+
+    def window_count(self, range_str, n):
+        low, high = parse_wildcard_range(range_str, n)
+        return low if low == high else random.randint(low, high)
+
+
 def process_wildcard_range(tag, lines):
     if not lines:
         return ""
@@ -523,6 +591,7 @@ class TagSelector:
         self.selected_options = options.get('selected_options', {})
         self.verbose = options.get('verbose', False)
         self.global_seed = options.get('seed', 0)
+        self.sequence = options.get('sequence') or SequenceContext(self.global_seed)
         self.seeded_values = {}
         self.processing_stack = set()
         self.resolved_seeds = {}
@@ -707,9 +776,9 @@ class TagSelector:
                         return result
             return ""
 
-        sequential = False
-        if parsed_tag.startswith('~'):
-            sequential = True
+        seq_mode = None
+        if parsed_tag[:1] in ('~', '@', '!'):
+            seq_mode = parsed_tag[0]
             parsed_tag = parsed_tag[1:]
 
         if '$$' in parsed_tag and not parsed_tag.startswith('#'):
@@ -717,6 +786,10 @@ class TagSelector:
             if any(c.isdigit() for c in range_part) or '-' in range_part:
                 tags = self.tag_loader.load_tags(file_part, self.verbose)
                 if isinstance(tags, list):
+                    if seq_mode and tags:
+                        count = self.sequence.window_count(range_part, len(tags))
+                        picked = [self._clean_seq_item(tags[i]) for i in self.sequence.window(len(tags), count, seq_mode, file_part.lower())]
+                        return ", ".join(picked)
                     return process_wildcard_range(parsed_tag, tags)
 
         if parsed_tag.startswith('#'):
@@ -726,13 +799,12 @@ class TagSelector:
 
         tags = self.tag_loader.load_tags(parsed_tag, self.verbose)
         
-        if sequential and isinstance(tags, list) and tags:
-            idx = self.global_seed % len(tags)
+        if seq_mode and isinstance(tags, list) and tags:
+            idx = self.sequence.pick_index(seq_mode, len(tags), parsed_tag.lower())
             selected = tags[idx]
             if isinstance(selected, dict):
                  return csv_row_to_assignments(selected)
-            if '#' in selected:
-                selected = selected.split('#')[0].strip()
+            selected = self._clean_seq_item(selected)
             return self.resolve_wildcard_recursively(selected, self.global_seed)
 
         # No tags loaded -> not a wildcard; None keeps the token literal
@@ -743,6 +815,15 @@ class TagSelector:
             return self.get_tag_choice(parsed_tag, tags)
         
         return None 
+
+    @staticmethod
+    def _clean_seq_item(item):
+        if isinstance(item, dict):
+            return csv_row_to_assignments(item)
+        item = str(item)
+        if '#' in item:
+            item = item.split('#')[0].strip()
+        return item
 
     def get_prefixes_and_suffixes(self):
         prefixes, suffixes = [], []
@@ -822,8 +903,9 @@ class TagReplacer:
         return p
 
 class DynamicPromptReplacer:
-    def __init__(self, seed):
+    def __init__(self, seed, sequence=None):
         self.seed = seed
+        self.sequence = sequence or SequenceContext(seed)
 
     def find_innermost_braces(self, text):
         """
@@ -902,6 +984,14 @@ class DynamicPromptReplacer:
         selected = random.choices(items, weights=weights, k=1)
         return selected[0]
 
+    def sequential_multi(self, content, mode='~'):
+        """{~k$$a|b|c|d} / {~k$$ sep $$a|b|c|d}: a group of k options per run (mode ~ @ !)."""
+        parts = content.split('$$')
+        separator = parts[1] if len(parts) == 3 else ', '
+        variants = [s.strip() for s in parts[-1].split("|")]
+        count = self.sequence.window_count(parts[0].strip(), len(variants))
+        return separator.join(variants[i] for i in self.sequence.window(len(variants), count, mode, parts[-1]))
+
     def process_content(self, content):
         """
         Process the content of a {...} block.
@@ -910,16 +1000,17 @@ class DynamicPromptReplacer:
         if not content:
             return ""
         
-        # Sequential mode (~)
-        if content.startswith('~'):
+        # Sequential mode (~), combination counter (@), shuffled deck (!)
+        if content[0] in ('~', '@', '!'):
+            mode = content[0]
             content = content[1:]
             if '$$' in content:
-                pass  # Fall through to $$ handling
+                return self.sequential_multi(content, mode)
             else:
                 variants = [s.strip() for s in content.split("|")]
                 if not variants:
                     return ""
-                return variants[self.seed % len(variants)]
+                return variants[self.sequence.pick_index(mode, len(variants), content)]
 
         # Weighted selection (::)
         if '::' in content and '$$' not in content:
@@ -1217,11 +1308,13 @@ class ABWildcardNode:
         text = text.replace('___UMI_HASH_PROTECT___', '#').replace('<___UMI_HASH_PROTECT___', '<#')
 
         random.seed(seed)
+        sequence = SequenceContext(seed)
         
         options = {
             'verbose': False, 
             'seed': seed,
-            'ignore_paths': True
+            'ignore_paths': True,
+            'sequence': sequence,
         }
 
         # Fix: Get all paths instead of just the internal one
@@ -1230,7 +1323,7 @@ class ABWildcardNode:
         
         tag_selector = TagSelector(tag_loader, options)
         tag_replacer = TagReplacer(tag_selector)
-        dynamic_replacer = DynamicPromptReplacer(seed)
+        dynamic_replacer = DynamicPromptReplacer(seed, sequence)
         conditional_replacer = ConditionalReplacer()
         variable_replacer = VariableReplacer()
 
