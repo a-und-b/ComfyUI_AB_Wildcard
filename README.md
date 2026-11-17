@@ -46,7 +46,11 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 **Cascade** — [`ab-wildcard-cascade.json`](example_workflows/ab-wildcard-cascade.json): a variable set from a tag query and fed into a second query (`$shade = <[ $test and Shade]>`), using [`color-shades.yaml`](wildcards/examples/color-shades.yaml).
 
+![Cascade example workflow](example_workflows/ab-wildcard-cascade-preview.png)
+
 **Sequences** — [`ab-wildcard-sequences.json`](example_workflows/ab-wildcard-sequences.json): `{~…}` step, `{~2$$…}` groups, `{@…}` combinations, `{!…}` deck and `__@file__`, with the seed widget set to `increment` (see [Sequences](#sequences-step-through-options-in-order)).
+
+![Sequences example workflow: six runs with the seed on increment](example_workflows/ab-wildcard-sequences.gif)
 
 1. Load a workflow file.
 2. Edit the prompt text.
