@@ -17,6 +17,7 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Card by Title** — `__Card Name__` to pull a specific YAML card's prompt
 * **Global Presets** — Auto-load variables from `globals.yaml`
 * **In-node Helpers** — Autocomplete (type `__` / `<[`) + Wildcards/Tags dropdowns
+* **Syntax Highlighting** — Colours, variable chips and underlined mistakes while you type
 
 ---
 
@@ -82,6 +83,26 @@ Wildcards** after adding files.
 
 ---
 
+## Syntax Highlighting and Diagnostics
+
+The text field colours the syntax as you type and marks mistakes.
+
+![Highlighted prompt with an underlined unknown wildcard and an unclosed brace](example_workflows/ab-wildcard-highlighting-preview.png)
+
+- **Colours** — comments, variables (as green chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]` and `[clean:]`.
+- **Red wavy underline** — an error: an unclosed `{`, `[if`, `<[`, `[clean:` or `[shuffle:`, an unmatched `}`, or `[if` without `:`.
+- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), or `{@…}` inside `{@…}` (not counted evenly).
+- **Blue dotted underline** — a hint: a `//` or `#` inside a block or URL starts a comment.
+- A strip at the bottom of the field gives the counts and the message at the caret.
+
+Good to know:
+
+- Your text is never changed; the colours are a layer behind the field.
+- `$name` is only reported as unassigned in prompts without wildcards, cards or tag queries, because CSV columns and cards can set variables the field cannot see. Variables from `globals.yaml` count as assigned.
+- **Refresh Wildcards** re-checks the names after you add files.
+
+---
+
 ## Syntax Reference
 
 ### Wildcards
@@ -91,6 +112,8 @@ __colors__              Pick random line from wildcards/colors.txt
 __folder/file__         Supports subdirectories
 __2$$colors__           Pick 2 random entries
 __1-3$$colors__         Pick 1 to 3 random entries
+<colors>                Same as __colors__
+<#7$$colors>            Same pick everywhere that uses #7 (repeat it to reuse the entry)
 ```
 
 ### Random Choices
@@ -286,6 +309,7 @@ __examples/lighting__,
 ```bash
 pip install -r requirements-dev.txt   # pytest (runtime needs only pyyaml)
 pytest
+node tests/syntax.test.mjs            # tokenizer and diagnostics (plain node, no install)
 ```
 
 ---
