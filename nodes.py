@@ -1305,7 +1305,9 @@ class ABWildcardNode:
                 clean_lines.append(line)
         
         text = "\n".join(clean_lines)
-        text = text.replace('___UMI_HASH_PROTECT___', '#').replace('<___UMI_HASH_PROTECT___', '<#')
+        # "<" variant first: the bare marker below would otherwise swallow it.
+        # "__#" is restored with its underscores (they were lost before, issue #7).
+        text = text.replace('<___UMI_HASH_PROTECT___', '<#').replace('___UMI_HASH_PROTECT___', '__#')
 
         random.seed(seed)
         sequence = SequenceContext(seed)

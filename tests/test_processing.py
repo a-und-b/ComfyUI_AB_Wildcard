@@ -320,3 +320,18 @@ def test_endpoint_lists_global_variable_names(csv_wildcard):
     csv_wildcard("globals.yaml", "style: noir\nmood: calm\n")
     loader = nodes.TagLoader(nodes.get_all_wildcard_paths(), {'ignore_paths': True, 'verbose': False})
     assert nodes._global_names(loader) == ["mood", "style"]
+
+
+# --- issue 7: __#7$$name__ lost its leading "__" ---
+
+def test_seeded_wildcard_keeps_its_underscores_and_repeats_the_pick():
+    for seed in range(10):
+        out = run("__#7$$examples/colors__ and __#7$$examples/colors__ and __#8$$examples/colors__", seed)
+        assert "#" not in out and "_" not in out and "$" not in out, out
+        first, second = out.split(" and ")[:2]
+        assert first == second, out
+
+
+def test_hash_after_underscores_or_angle_is_not_a_comment():
+    assert "#" not in run("__#7$$examples/colors__")
+    assert "#" not in run("<#7$$examples/colors>")
