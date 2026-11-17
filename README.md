@@ -10,6 +10,7 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 
 * **Wildcards** — Load random entries from `.txt` and `.yaml` files
 * **Dynamic Choices** — `{a|b|c}` random selection with range support
+* **Sequences** — `{~…}` step, `{@…}` all combinations, `{!…}` shuffled deck (no repeats per round)
 * **Variables** — Define once (`$var={...}`), reuse everywhere (`$var`)
 * **Conditional Logic** — `[if condition : true | false]` with AND/OR/NOT/XOR
 * **Tag Aggregation** — `<[Tag]>` to pick from YAML cards by tag
@@ -44,6 +45,8 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 ![Features example workflow](example_workflows/ab-wildcard-features-preview.png)
 
 **Cascade** — [`ab-wildcard-cascade.json`](example_workflows/ab-wildcard-cascade.json): a variable set from a tag query and fed into a second query (`$shade = <[ $test and Shade]>`), using [`color-shades.yaml`](wildcards/examples/color-shades.yaml).
+
+**Sequences** — [`ab-wildcard-sequences.json`](example_workflows/ab-wildcard-sequences.json): `{~…}` step, `{~2$$…}` groups, `{@…}` combinations, `{!…}` deck and `__@file__`, with the seed widget set to `increment` (see [Sequences](#sequences-step-through-options-in-order)).
 
 1. Load a workflow file.
 2. Edit the prompt text.
@@ -93,11 +96,46 @@ __1-3$$colors__         Pick 1 to 3 random entries
 {2$$a|b|c|d}            Pick exactly 2
 {1-3$$a|b|c|d}          Pick 1 to 3
 {2$$ and $$a|b|c|d}     Pick 2, joined with " and " instead of ", "
-{~a|b|c}                Sequential (seed-based, same seed = same pick)
+{~a|b|c}                Sequential, see "Sequences" below
 {50%yes|no}             50% chance for "yes", else "no"
 {5::red|3::blue|green}  Weighted choice (red=5, blue=3, green=1)
 {a|{b|{c|d}}}           Nested choices (unlimited depth)
 ```
+
+### Sequences (step through options in order)
+
+These don't pick at random: they step through the options. Set the node's
+**seed widget to `increment`** and every queued run takes the next step. The
+step is worked out from the seed alone, so the same seed always gives the
+same prompt, and other random `{a|b}` blocks are not affected.
+
+```text
+{~a|b|c}                Step: a, b, c, a, … (option = seed mod count)
+{~2$$a|b|c|d}           Step in groups: "a, b", then "c, d", then "a, b" …
+{~2$$ and $$a|b|c|d}    Same, joined with " and "
+{@a|b} {@x|y|z}         Combinations: every @ block counts like an odometer
+                        (the first one turns fastest). 2×3 = 6 runs give
+                        every pairing exactly once: a x, b x, a y, b y, a z, b z
+{!a|b|c|d}              Deck: shuffled order, but every option comes up once
+                        before any repeats (new shuffle each round)
+{@2$$a|b|c}             Groups work with @ and ! too: a window of 2 that moves
+                        with the counter (@), or 2 from the shuffled rounds (!)
+__~colors__             Step through the lines of a wildcard file
+__~2$$colors__          Lines of a file, two at a time
+__@colors__             File joins the @ combinations
+__!colors__             File lines as a shuffled deck
+```
+
+Good to know:
+
+- Two identical `{!…}` blocks in one prompt draw the same option. Make the
+  options differ, or use one block and a variable.
+- `{@…}` blocks inside each other are not counted evenly; keep them side by side.
+- `{~1-2$$…}` with a range picks the group size at random per run.
+- A wildcard file name must not start with `~`, `@` or `!`.
+
+Tip: to render an entire grid (e.g. 3 styles × 4 lights), use `@` blocks,
+start the seed at 0 and queue 12 runs ("Batch count" 12, seed `increment`).
 
 ### Variables
 
