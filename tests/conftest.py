@@ -52,6 +52,7 @@ if "comfy_api" not in sys.modules:
         ComfyNode=object,
         String=types.SimpleNamespace(Output=_Output),
         Int=types.SimpleNamespace(Output=_Output),
+        Custom=lambda _t: types.SimpleNamespace(Input=_Output, Output=_Output),
     )
     sys.modules["comfy_api"] = types.ModuleType("comfy_api")
     sys.modules["comfy_api.latest"] = latest

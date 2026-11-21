@@ -1,7 +1,7 @@
-"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing (V3 node API).
+"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply (V3 node API).
 
 Thin wrappers: the logic lives in ops.py, where pytest can reach it.
-Plan: docs/plan-wildcard-io.md
+Plans: docs/plan-wildcard-io.md, docs/plan-llm-ops.md
 """
 import os
 
@@ -220,3 +220,68 @@ class ABPromptMix(io.ComfyNode):
         else:
             used = ops.mix(texts, weights=[pick[f"weight {i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
         return io.NodeOutput(ops.join(used, *_sep(separator)))
+
+
+LLMPlan = io.Custom("AB_LLM_PLAN")  # own type: can't be wired into a text input by mistake
+
+
+class ABLLMPrep(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABLLMPrep",
+            display_name="AB LLM Prep",
+            category=CATEGORY,
+            description="Turns the [gen …] parts of a prompt into one request for a text generator "
+                        "(e.g. Generate Text). AB LLM Apply puts the answers back; the rest of the "
+                        "prompt never passes through the LLM.",
+            search_aliases=["llm", "gen", "spin prompt", "expand prompt", "shorten prompt", "rewrite prompt",
+                            "generate text", "prompt slots"],
+            inputs=[
+                io.String.Input("text", multiline=True, tooltip=(
+                    "The prompt. Mark parts: [gen: what to write] · [gen spin: …] same meaning, other words · "
+                    "[gen expand: …] more detail · [gen short: …] shorter · [gen fit: …] adapt to the rest")),
+                io.Combo.Input("scope", options=ops.LLM_SCOPES, tooltip=(
+                    "What the LLM reads besides the parts: full = the whole prompt · "
+                    "input = only the context input · none = just the parts")),
+                io.Combo.Input("default_operation", display_name="default operation", options=ops.LLM_DEFAULT_OPS, tooltip=(
+                    "For a text without [gen …] parts: run this on the whole text. "
+                    "none passes it through unchanged")),
+                io.String.Input("context", force_input=True, optional=True,
+                                tooltip="Read by the LLM when scope is input"),
+            ],
+            outputs=[
+                io.String.Output(display_name="system_prompt", tooltip="To Generate Text's system_prompt"),
+                io.String.Output(display_name="prompt", tooltip="To Generate Text's prompt"),
+                LLMPlan.Output(display_name="plan", tooltip="To AB LLM Apply"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, text, scope, default_operation, context=""):
+        return io.NodeOutput(*ops.llm_prep(text, scope, default_operation, context))
+
+
+class ABLLMApply(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABLLMApply",
+            display_name="AB LLM Apply",
+            category=CATEGORY,
+            description="Puts a text generator's answers back into the prompt from AB LLM Prep. "
+                        "A part without a usable answer keeps its original text.",
+            search_aliases=["llm", "gen", "apply llm answer", "prompt slots"],
+            inputs=[
+                LLMPlan.Input("plan", tooltip="From AB LLM Prep"),
+                io.String.Input("generated_text", force_input=True, tooltip="From Generate Text"),
+            ],
+            outputs=[
+                io.String.Output(display_name="text", tooltip="The prompt with the new parts"),
+                io.String.Output(display_name="report", tooltip="Per part: the new text, or why it kept the original"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, plan, generated_text):
+        return io.NodeOutput(*ops.llm_apply(plan, generated_text))

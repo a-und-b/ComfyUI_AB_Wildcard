@@ -129,3 +129,74 @@ def test_saved_file_resolves_in_wildcard_node(tmp_path, monkeypatch):
     ops.clear_wildcard_caches()
     assert nodes.ABWildcardNode().process(text="__fresh__", seed=1)[0] == "only-entry"
     ops.clear_wildcard_caches()
+
+
+# --- LLM prep / apply (docs/plan-llm-ops.md) ---------------------------------------
+
+LLM_TEXT = "a knight, [gen spin: red silk dress], [gen expand: castle], [gen short: a very old and rusty iron sword], [gen: a mood]"
+
+
+def test_llm_markers():
+    slots = ops.llm_slots(LLM_TEXT)
+    assert [(s["op"], s["content"]) for s in slots] == [
+        ("spin", "red silk dress"), ("expand", "castle"),
+        ("short", "a very old and rusty iron sword"), ("fill", "a mood")]
+    assert ops.llm_slots("[GEN Fit:viking ]")[0]["op"] == "fit"
+    with pytest.raises(ValueError, match="unknown operation"):
+        ops.llm_slots("[gen foo: x]")
+
+
+def test_llm_markers_survive_wildcard():
+    """AB Wildcard resolves picks inside a marker and keeps the marker."""
+    out = nodes.ABWildcardNode().process(text="[gen fit: {viking|viking}], [gen spin: dress]", seed=1)[0]
+    assert out == "[gen fit: viking], [gen spin: dress]"
+
+
+def test_llm_default_operation():
+    assert ops.llm_slots("a cat") == []
+    [s] = ops.llm_slots(" a cat ", "short")
+    assert (s["op"], s["content"], s["start"], s["end"]) == ("short", "a cat", 0, 7)
+    assert len(ops.llm_slots("[gen: x] y", "short")) == 1  # markers win over the default
+
+
+def test_llm_prep_scopes():
+    system, prompt, plan = ops.llm_prep(LLM_TEXT, "full")
+    assert "N: new text" in system
+    assert "a knight, [1: red silk dress], [2: castle]" in prompt
+    assert "Shorten \"a very old and rusty iron sword\" to at most 3 words" in prompt
+    assert prompt.endswith('"1: …", "2: …", "3: …", "4: …".')
+    assert plan["text"] == LLM_TEXT and len(plan["slots"]) == 4
+    assert "knight" not in ops.llm_prep(LLM_TEXT, "none")[1]
+    _s, prompt, _p = ops.llm_prep(LLM_TEXT, "input", context="a dark forest")
+    assert "Context:\na dark forest" in prompt and "knight" not in prompt
+
+
+def test_llm_no_slots_still_sends_a_tiny_request():
+    system, prompt, plan = ops.llm_prep("a cat, (sun:2)", "full", "none")
+    assert (system, prompt) == ("Reply with OK.", "OK?")
+    text, report = ops.llm_apply(plan, "OK")
+    assert text == "a cat, (sun:2)" and "passed through" in report
+
+
+def test_llm_parse_lines_tolerates_noise():
+    answer = ("<think>\n1: wrong, still thinking\n</think>\nSure! Here you go:\n"
+              "**1.** crimson satin gown\n- 2) \"a towering stone fortress\",\n3: rusty blade\n"
+              "1: duplicate, ignored\n9: out of range\n```")
+    assert ops.parse_llm_lines(answer, 3) == {
+        1: "crimson satin gown", 2: "a towering stone fortress", 3: "rusty blade"}
+    assert ops.parse_llm_lines("<think>never closed 1: x", 1) == {}
+
+
+def test_llm_apply_splices_and_falls_back_per_slot():
+    _s, _p, plan = ops.llm_prep(LLM_TEXT, "full")
+    answer = "1: crimson satin gown\n3: a rusty sword that is much longer than the original was\n4: "
+    text, report = ops.llm_apply(plan, answer)
+    assert text == ("a knight, crimson satin gown, castle, a very old and rusty iron sword, a mood")
+    lines = report.splitlines()
+    assert lines[0] == '1 spin: "red silk dress" → "crimson satin gown"'
+    assert "no line" in lines[1] and "longer than the original" in lines[2] and "empty" in lines[3]
+
+
+def test_llm_apply_whole_text():
+    _s, _p, plan = ops.llm_prep("a big red ball on a table", "full", "short")
+    assert ops.llm_apply(plan, "1: red ball.")[0] == "red ball"

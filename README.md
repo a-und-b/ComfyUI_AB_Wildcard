@@ -20,6 +20,7 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Syntax Highlighting** — Colours, variable chips and underlined mistakes while you type
 * **Wildcard Files in the Graph** — Save and load wildcard files through node inputs and outputs
 * **Text Tools** — Line operations in one node, and a mixer that lets prompt pieces through by chance
+* **LLM Edits** — A text generator rewrites only the marked parts of a prompt (`[gen spin: …]`); the rest never passes through it
 
 ---
 
@@ -37,7 +38,7 @@ Restart ComfyUI.
 
 ## Example workflows
 
-The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models.
+The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models — except the two LLM workflows, which load a text encoder that can generate (see [LLM Edits](#llm-edits-on-marked-parts)).
 
 **Basic** — [`ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json): `{a|b}` choices.
 
@@ -64,6 +65,10 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 ![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
 
 **Full demo** — [`ab-wildcard-demo.json`](example_workflows/ab-wildcard-demo.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
+
+**LLM edits** — [`ab-llm-slots.json`](example_workflows/ab-llm-slots.json): AB Wildcard → **AB LLM Prep** → core **Generate Text** → **AB LLM Apply**. A random pick inside `[gen fit: …]` is adapted to the rest of the prompt, `[gen spin: …]` and `[gen expand: …]` are rewritten, everything else stays as typed.
+
+**Wildcard entries from an LLM** — [`ab-llm-wildcard-entries.json`](example_workflows/ab-llm-wildcard-entries.json): **Generate Text** lists 20 professions, **AB Text Lines** strips the numbering (replace, regex `^\d+[.:)]\s*`), **AB Wildcard Save** adds them to `llm/professions`.
 
 1. Load a workflow file.
 2. Edit the prompt text.
@@ -115,6 +120,49 @@ Four more nodes in **AB Utils** build and shape wildcard files inside a graph. T
 - **each by chance**: every piece is used with its `chance %` (100 = always, 50 = half the runs, 0 = never), joined in slot order.
 - **one by weight**: exactly one piece, chosen by the weights relative to each other.
 - Same `seed`, same result. The mix has its own random generator, so it doesn't shift the picks of the AB Wildcard node. Pieces are joined with a comma; change it under advanced.
+
+---
+
+## LLM Edits on Marked Parts
+
+Two nodes in **AB Utils** let an LLM rewrite parts of a prompt while the rest stays exactly as typed: **AB LLM Prep** turns the marked parts into one request, ComfyUI's core **Generate Text** node answers it, **AB LLM Apply** puts the answers back. The text outside the markers is copied by code and never passes through the LLM. The pack itself still makes no network calls: the LLM is whatever node sits between Prep and Apply.
+
+```
+AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generated_text→ AB LLM Apply → CLIP Text Encode
+                   └──────────────────────── plan ───────────────────────────────────┘
+```
+
+| Marker | What the LLM does |
+|--------|-------------------|
+| `[gen: a profession fitting the character]` | writes what it asks for |
+| `[gen spin: red silk dress]` | same meaning, other words |
+| `[gen expand: castle]` | more detail |
+| `[gen short: …]` | shorter, keeps the core |
+| `[gen fit: {viking\|pirate}]` | adapts it to the rest of the prompt, keeps its core |
+
+Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives as `[gen fit: viking]`: `fit` smooths a random pick without touching anything else. `#` and `//` inside a marker are removed as comments, like everywhere in AB Wildcard.
+
+**AB LLM Prep**
+
+- `scope`: what the LLM reads besides the parts — **full** the whole prompt, **input** only the text wired into `context`, **none** just the parts. `fit` needs full or input.
+- `default operation`: for a text without markers, run this on the whole text (**none** · spin · expand · short · fit). So "shorten the whole prompt" needs no marker.
+- Outputs `system_prompt` and `prompt` for Generate Text, and `plan` for Apply. `plan` has its own type, so it can't land in a text input by mistake.
+
+**AB LLM Apply** takes `plan` and `generated_text`, and outputs `text` and a `report` with one line per part: the new text, or why it kept the original. A part keeps its original text when the answer has no line for it, the line is empty, or a `short` answer is longer than the original.
+
+**No parts, still a tiny run.** Without markers and with default operation none, Prep sends Generate Text a trivial request ("Reply with OK."), and Apply passes the text through unchanged. Blocking the run instead would block the image too. It costs a few tokens on an encoder that is loaded anyway.
+
+**Which encoder.** Generate Text runs on the text encoder you already load for the image model, through a **Load CLIP** node. Not every encoder file can generate text — some ship without the language-model head and fail inside Generate Text before Apply runs. Tested with ComfyUI 0.46.2:
+
+| Encoder file (CLIP type) | Result |
+|---|---|
+| `qwen3.5_9b_int8_convrot` (qwen_image) | follows every operation well — the best choice for spin, expand and fit |
+| `qwen_3_4b` (lumina2) | works and is fast; spin and expand fine, `fit` and `[gen: …]` weaker |
+| `qwen_3_8b_fp8mixed` (flux2) | can't generate (`'NoneType' object has no attribute 'device'`) |
+
+The CLIP type only matters for loading; the same weights give the same text. Keep **thinking** off; `max_length` 512 is enough for a handful of parts.
+
+**One node instead of three.** The subgraph blueprint **AB LLM Edit** (node library → subgraphs) bundles Prep, Generate Text and Apply: connect `text` and your `clip`, read `text` and `report`.
 
 ---
 

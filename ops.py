@@ -181,3 +181,128 @@ def clear_wildcard_caches():
 def load_lines(path):
     with open(path, encoding="utf8") as f:
         return read_file_lines(f)
+
+
+# --- LLM prep / apply ----------------------------------------------------------------
+# Plan: docs/plan-llm-ops.md. Prep turns [gen …] markers into one request for a text
+# generator (core Generate Text or any other); Apply splices its numbered-line answer
+# back. Text outside the markers never passes through the LLM.
+
+LLM_OPS = ["fill", "spin", "expand", "short", "fit"]
+LLM_DEFAULT_OPS = ["none", "spin", "expand", "short", "fit"]
+LLM_SCOPES = ["full", "input", "none"]
+_MARKER = re.compile(r"\[gen(?:\s+(\w+))?\s*:\s*([^\]]*?)\s*\]", re.IGNORECASE)
+
+LLM_SYSTEM = (
+    "You edit parts of a text-to-image prompt. Each numbered task below names one part "
+    "and what to do with it. Reply with exactly one line per task, in order, in the form "
+    "\"N: new text\". Write only the new text for that part: no explanations, no quotes, "
+    "no notes, no other lines."
+)
+LLM_NO_SLOTS_SYSTEM = "Reply with OK."
+
+# Per-operation task. {c} = the part's original content, {n} = word limit for short.
+LLM_TASKS = {
+    "fill": "Write the concrete thing this asks for, in a few words (an actual example, not a "
+            "description of the request): {c}",
+    "spin": "Say \"{c}\" differently: same meaning and subject, but replace most of the words "
+            "with different ones (synonyms, other details of the same thing).",
+    "expand": "Rewrite \"{c}\" with more visual detail (materials, colors, light, setting): "
+              "at least twice as many words, same subject.",
+    "short": "Shorten \"{c}\" to at most {n} words. Keep the core, drop details.",
+    "fit": "\"{c}\" clashes with the rest of the prompt. Rewrite it to match the prompt's era, "
+           "setting and style: keep what kind of thing it is (a place stays a place), change "
+           "the details that clash.",
+}
+
+
+def llm_slots(text, default_op="none"):
+    """Marker spans in text: [{op, content, start, end}].
+
+    Text without markers is one slot with default_op ('none': no slots).
+    """
+    slots = []
+    for m in _MARKER.finditer(text or ""):
+        op = (m.group(1) or "fill").lower()
+        if op not in LLM_OPS:
+            raise ValueError(f"AB LLM Prep: unknown operation {m.group(0)!r}. "
+                             f"Use [gen: …] or [gen spin|expand|short|fit: …].")
+        slots.append({"op": op, "content": m.group(2), "start": m.start(), "end": m.end()})
+    if not slots and default_op != "none" and (text or "").strip():
+        slots.append({"op": default_op, "content": text.strip(), "start": 0, "end": len(text)})
+    return slots
+
+
+def _word_limit(content):
+    return max(1, len(content.split()) // 2)
+
+
+def llm_prep(text, scope="full", default_op="none", context=""):
+    """(system_prompt, prompt, plan) for one generator call."""
+    text = text or ""
+    slots = llm_slots(text, default_op)
+    plan = {"text": text, "slots": slots}
+    if not slots:
+        # ponytail: a trivial request instead of blocking; an ExecutionBlocker here would block the image too
+        return LLM_NO_SLOTS_SYSTEM, "OK?", plan
+
+    if scope == "full":
+        # the prompt as the model sees it: every marker shown as [N: content]
+        parts, pos = [], 0
+        for i, s in enumerate(slots, 1):
+            parts += [text[pos:s["start"]], f"[{i}: {s['content']}]"]
+            pos = s["end"]
+        context = "".join(parts + [text[pos:]]).strip()
+    elif scope == "none":
+        context = ""
+    context = (context or "").strip()
+
+    tasks = [f"{i}: " + LLM_TASKS[s["op"]].format(c=s["content"], n=_word_limit(s["content"]))
+             for i, s in enumerate(slots, 1)]
+    prompt = (f"The prompt (parts to edit marked [N: …]):\n{context}\n\n" if scope == "full" else
+              f"Context:\n{context}\n\n" if context else "")
+    prompt += "Tasks:\n" + "\n".join(tasks)
+    prompt += f"\n\nAnswer with exactly {len(slots)} line{'s' if len(slots) > 1 else ''}, " \
+              + ", ".join(f"\"{i}: …\"" for i in range(1, len(slots) + 1)) + "."
+    return LLM_SYSTEM, prompt, plan
+
+
+_THINK = re.compile(r"<think>.*?(</think>|$)", re.DOTALL | re.IGNORECASE)
+_LINE = re.compile(r"^\W*?(\d+)\W*?[:.)]\s*(.*)$")  # tolerates "1:", "**1.**", "- 2)", "[3]:"
+
+
+def parse_llm_lines(answer, count):
+    """{slot number: answer} from a numbered-line answer; the first line per number wins."""
+    found = {}
+    for line in _THINK.sub("", answer or "").splitlines():
+        m = _LINE.match(line.strip())
+        if m and 1 <= int(m.group(1)) <= count and int(m.group(1)) not in found:
+            found[int(m.group(1))] = m.group(2).strip().rstrip(",").strip().strip("\"'`*").strip()
+    return found
+
+
+def llm_apply(plan, answer):
+    """(text, report): each slot's answer spliced into the original text, or its fallback."""
+    text, slots = plan["text"], plan["slots"]
+    if not slots:
+        return text, "No [gen …] parts and default operation none: text passed through, answer ignored."
+    found = parse_llm_lines(answer, len(slots))
+    out, pos, report = [], 0, []
+    for i, s in enumerate(slots, 1):
+        new, why = found.get(i), None
+        if new is None:
+            why = "no line for it in the answer"
+        elif not new:
+            why = "empty answer"
+        elif s["op"] == "short" and len(new) > len(s["content"]):
+            why = "the short version is longer than the original"
+        if why:
+            new = s["content"]
+            report.append(f"{i} {s['op']}: fallback ({why}), kept \"{new}\"")
+        else:
+            if not s["content"].endswith("."):
+                new = new.rstrip(".")  # "cozy cabin at dusk." would end a comma list with a stray period
+            report.append(f"{i} {s['op']}: \"{s['content']}\" → \"{new}\"")
+        out += [text[pos:s["start"]], new]
+        pos = s["end"]
+    return "".join(out + [text[pos:]]), "\n".join(report)

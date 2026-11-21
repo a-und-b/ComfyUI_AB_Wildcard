@@ -1,0 +1,708 @@
+{
+  "revision": 0,
+  "last_node_id": 9,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 9,
+      "type": "5de2ceb4-50de-4b84-b91a-d6daeed2a22b",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        225,
+        225
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "context",
+          "name": "context",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "scope",
+          "type": "COMBO",
+          "widget": {
+            "name": "scope"
+          },
+          "link": null
+        },
+        {
+          "name": "default_operation",
+          "type": "COMBO",
+          "widget": {
+            "name": "default_operation"
+          },
+          "link": null
+        },
+        {
+          "name": "max_length",
+          "type": "INT",
+          "widget": {
+            "name": "max_length"
+          },
+          "link": null
+        },
+        {
+          "name": "sampling_mode.seed",
+          "type": "INT",
+          "widget": {
+            "name": "sampling_mode.seed"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "localized_name": "report",
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "",
+        "full",
+        "none",
+        512,
+        0
+      ],
+      "title": "AB LLM Edit"
+    }
+  ],
+  "links": [],
+  "version": 0.4,
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "5de2ceb4-50de-4b84-b91a-d6daeed2a22b",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 9,
+          "lastLinkId": 18,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "AB LLM Edit",
+        "inputNode": {
+          "id": -10,
+          "bounding": [
+            -188,
+            -54,
+            128,
+            108
+          ]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [
+            60,
+            -44,
+            128,
+            88
+          ]
+        },
+        "inputs": [
+          {
+            "id": "c5481980-5b1e-49e1-b25a-ad9b50e5838c",
+            "name": "context",
+            "type": "STRING",
+            "linkIds": [
+              2
+            ],
+            "localized_name": "context",
+            "shape": 7,
+            "pos": [
+              51,
+              24
+            ]
+          },
+          {
+            "id": "44be18f6-0e3d-4e7c-90dc-dcc6dc980757",
+            "name": "text",
+            "type": "STRING",
+            "linkIds": [
+              1
+            ],
+            "localized_name": "text",
+            "pos": [
+              51,
+              44
+            ]
+          },
+          {
+            "id": "683dc9bc-d0b9-45d6-9ad1-7352af9ace6e",
+            "name": "clip",
+            "type": "CLIP",
+            "linkIds": [
+              3
+            ],
+            "localized_name": "clip",
+            "pos": [
+              51,
+              64
+            ]
+          },
+          {
+            "id": "8eeb2565-e890-4cce-94b1-223a8858e8f2",
+            "name": "scope",
+            "type": "COMBO",
+            "linkIds": [
+              15
+            ],
+            "pos": [
+              0,
+              0
+            ]
+          },
+          {
+            "id": "3c112034-e8c7-4503-a5ae-d17c4b0c25ab",
+            "name": "default_operation",
+            "type": "COMBO",
+            "linkIds": [
+              16
+            ],
+            "pos": [
+              0,
+              0
+            ]
+          },
+          {
+            "id": "68c6867d-5511-429a-9369-5c943dd580c4",
+            "name": "max_length",
+            "type": "INT",
+            "linkIds": [
+              17
+            ],
+            "pos": [
+              0,
+              0
+            ]
+          },
+          {
+            "id": "b79fb4c2-b416-44c6-84e2-63e4012b2ee3",
+            "name": "sampling_mode.seed",
+            "type": "INT",
+            "linkIds": [
+              18
+            ],
+            "pos": [
+              0,
+              0
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "0aba53f5-3f29-462f-b4e7-223da23a9dc0",
+            "name": "text",
+            "type": "STRING",
+            "linkIds": [
+              8
+            ],
+            "localized_name": "text",
+            "pos": [
+              24,
+              24
+            ]
+          },
+          {
+            "id": "61b8df7b-faa1-42ef-b99a-55522c9a2770",
+            "name": "report",
+            "type": "STRING",
+            "linkIds": [
+              9
+            ],
+            "localized_name": "report",
+            "pos": [
+              24,
+              44
+            ]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 4,
+            "type": "ABLLMPrep",
+            "pos": [
+              400,
+              0
+            ],
+            "size": [
+              400,
+              200
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "context",
+                "name": "context",
+                "shape": 7,
+                "type": "STRING",
+                "link": 2
+              },
+              {
+                "localized_name": "text",
+                "name": "text",
+                "type": "STRING",
+                "widget": {
+                  "name": "text"
+                },
+                "link": 1
+              },
+              {
+                "localized_name": "scope",
+                "name": "scope",
+                "type": "COMBO",
+                "widget": {
+                  "name": "scope"
+                },
+                "link": 15
+              },
+              {
+                "localized_name": "default operation",
+                "name": "default_operation",
+                "type": "COMBO",
+                "widget": {
+                  "name": "default_operation"
+                },
+                "link": 16
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "system_prompt",
+                "name": "system_prompt",
+                "type": "STRING",
+                "links": [
+                  4
+                ]
+              },
+              {
+                "localized_name": "prompt",
+                "name": "prompt",
+                "type": "STRING",
+                "links": [
+                  5
+                ]
+              },
+              {
+                "localized_name": "plan",
+                "name": "plan",
+                "type": "AB_LLM_PLAN",
+                "links": [
+                  6
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ABLLMPrep"
+            },
+            "widgets_values": [
+              "",
+              "full",
+              "none"
+            ]
+          },
+          {
+            "id": 5,
+            "type": "TextGenerateV2",
+            "pos": [
+              800,
+              0
+            ],
+            "size": [
+              400,
+              475
+            ],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "clip",
+                "name": "clip",
+                "type": "CLIP",
+                "link": 3
+              },
+              {
+                "localized_name": "image1",
+                "name": "images.image1",
+                "shape": 7,
+                "type": "IMAGE",
+                "link": null
+              },
+              {
+                "localized_name": "video1",
+                "name": "videos.video1",
+                "shape": 7,
+                "type": "IMAGE",
+                "link": null
+              },
+              {
+                "localized_name": "audio1",
+                "name": "audios.audio1",
+                "shape": 7,
+                "type": "AUDIO",
+                "link": null
+              },
+              {
+                "localized_name": "system_prompt",
+                "name": "system_prompt",
+                "shape": 7,
+                "type": "STRING",
+                "link": 4
+              },
+              {
+                "localized_name": "prompt",
+                "name": "prompt",
+                "type": "STRING",
+                "widget": {
+                  "name": "prompt"
+                },
+                "link": 5
+              },
+              {
+                "localized_name": "max_length",
+                "name": "max_length",
+                "type": "INT",
+                "widget": {
+                  "name": "max_length"
+                },
+                "link": 17
+              },
+              {
+                "localized_name": "Sampling Mode",
+                "name": "sampling_mode",
+                "type": "COMFY_DYNAMICCOMBO_V3",
+                "widget": {
+                  "name": "sampling_mode"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "temperature",
+                "name": "sampling_mode.temperature",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "sampling_mode.temperature"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "top_k",
+                "name": "sampling_mode.top_k",
+                "type": "INT",
+                "widget": {
+                  "name": "sampling_mode.top_k"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "top_p",
+                "name": "sampling_mode.top_p",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "sampling_mode.top_p"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "min_p",
+                "name": "sampling_mode.min_p",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "sampling_mode.min_p"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "repetition_penalty",
+                "name": "sampling_mode.repetition_penalty",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "sampling_mode.repetition_penalty"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "presence_penalty",
+                "name": "sampling_mode.presence_penalty",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "sampling_mode.presence_penalty"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "seed",
+                "name": "sampling_mode.seed",
+                "type": "INT",
+                "widget": {
+                  "name": "sampling_mode.seed"
+                },
+                "link": 18
+              },
+              {
+                "localized_name": "thinking",
+                "name": "thinking",
+                "shape": 7,
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "thinking"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "use_default_template",
+                "name": "use_default_template",
+                "shape": 7,
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "use_default_template"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "mtp",
+                "name": "mtp",
+                "shape": 7,
+                "type": "COMBO",
+                "widget": {
+                  "name": "mtp"
+                },
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "generated_text",
+                "name": "generated_text",
+                "type": "STRING",
+                "links": [
+                  7
+                ]
+              },
+              {
+                "localized_name": "thinking",
+                "name": "thinking",
+                "type": "STRING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "TextGenerateV2"
+            },
+            "widgets_values": [
+              "",
+              512,
+              "on",
+              0.7,
+              64,
+              0.95,
+              0.05,
+              1.05,
+              0,
+              0,
+              false,
+              true,
+              "auto"
+            ]
+          },
+          {
+            "id": 6,
+            "type": "ABLLMApply",
+            "pos": [
+              1200,
+              0
+            ],
+            "size": [
+              175,
+              50
+            ],
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "plan",
+                "name": "plan",
+                "type": "AB_LLM_PLAN",
+                "link": 6
+              },
+              {
+                "localized_name": "generated_text",
+                "name": "generated_text",
+                "type": "STRING",
+                "link": 7
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "text",
+                "name": "text",
+                "type": "STRING",
+                "links": [
+                  8
+                ]
+              },
+              {
+                "localized_name": "report",
+                "name": "report",
+                "type": "STRING",
+                "links": [
+                  9
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ABLLMApply"
+            }
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 6,
+            "origin_id": 4,
+            "origin_slot": 2,
+            "target_id": 6,
+            "target_slot": 0,
+            "type": "AB_LLM_PLAN"
+          },
+          {
+            "id": 7,
+            "origin_id": 5,
+            "origin_slot": 0,
+            "target_id": 6,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 2,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 4,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 1,
+            "target_id": 4,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 8,
+            "origin_id": 6,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 9,
+            "origin_id": 6,
+            "origin_slot": 1,
+            "target_id": -20,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 15,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 4,
+            "target_slot": 2,
+            "type": "COMBO"
+          },
+          {
+            "id": 16,
+            "origin_id": -10,
+            "origin_slot": 4,
+            "target_id": 4,
+            "target_slot": 3,
+            "type": "COMBO"
+          },
+          {
+            "id": 3,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 5,
+            "target_slot": 0,
+            "type": "CLIP"
+          },
+          {
+            "id": 4,
+            "origin_id": 4,
+            "origin_slot": 0,
+            "target_id": 5,
+            "target_slot": 4,
+            "type": "STRING"
+          },
+          {
+            "id": 5,
+            "origin_id": 4,
+            "origin_slot": 1,
+            "target_id": 5,
+            "target_slot": 5,
+            "type": "STRING"
+          },
+          {
+            "id": 17,
+            "origin_id": -10,
+            "origin_slot": 5,
+            "target_id": 5,
+            "target_slot": 6,
+            "type": "INT"
+          },
+          {
+            "id": 18,
+            "origin_id": -10,
+            "origin_slot": 6,
+            "target_id": 5,
+            "target_slot": 14,
+            "type": "INT"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "extra": {}
+}
