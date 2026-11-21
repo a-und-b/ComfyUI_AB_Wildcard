@@ -131,7 +131,9 @@ class ABTextLines(io.ComfyNode):
                     Opt("sort", [io.Combo.Input("direction", options=ops.SORTS)]),
                     Opt("filter", [
                         io.Combo.Input("keep lines that", options=ops.MATCHES),
-                        S("text", tooltip="Empty keeps every line"),
+                        # Not "text": a child id equal to a top-level input name makes comfyui-agent-panel
+                        # delete the top-level widget on load (it takes it for a stale DynamicCombo row).
+                        S("this text", tooltip="Empty keeps every line"),
                     ]),
                     Opt("replace", [
                         S("find", tooltip="Any case; empty changes nothing"),
@@ -166,7 +168,7 @@ class ABTextLines(io.ComfyNode):
         if op == "sort":
             items = ops.sort_lines(items, operation["direction"])
         elif op == "filter":
-            items = ops.filter_lines(items, operation["keep lines that"], operation["text"])
+            items = ops.filter_lines(items, operation["keep lines that"], operation["this text"])
         elif op == "replace":
             items = ops.replace_lines(items, operation["find"], operation["replace with"], operation["use regex"])
         elif op == "remove duplicates":

@@ -100,7 +100,7 @@ Four more nodes in **AB Utils** build and shape wildcard files inside a graph. T
 | operation | fields |
 |-----------|--------|
 | sort | `direction`: A → Z, Z → A, reverse order |
-| filter | `keep lines that` contain, don't contain, start with, end with, are exactly, match regex · `text` |
+| filter | `keep lines that` contain, don't contain, start with, end with, are exactly, match regex · `this text` |
 | replace | `find`, `replace with` · advanced: `use regex` (then `\1` inserts a group) |
 | remove duplicates | advanced: `ignore case` |
 | shuffle | `seed` |

@@ -493,11 +493,11 @@
           "link": null
         },
         {
-          "localized_name": "text",
-          "name": "operation.text",
+          "localized_name": "this text",
+          "name": "operation.this text",
           "type": "STRING",
           "widget": {
-            "name": "operation.text"
+            "name": "operation.this text"
           },
           "link": null
         },
@@ -558,7 +558,7 @@
         "text": "",
         "operation": "filter",
         "operation.keep lines that": "start with",
-        "operation.text": "b",
+        "operation.this text": "b",
         "input_separator": "new line",
         "output_separator": "new line"
       }
@@ -893,11 +893,11 @@
           "link": null
         },
         {
-          "localized_name": "text",
-          "name": "operation.text",
+          "localized_name": "this text",
+          "name": "operation.this text",
           "type": "STRING",
           "widget": {
-            "name": "operation.text"
+            "name": "operation.this text"
           },
           "link": null
         },
@@ -959,7 +959,7 @@
         "text": "",
         "operation": "filter",
         "operation.keep lines that": "contain",
-        "operation.text": "red",
+        "operation.this text": "red",
         "input_separator": "new line",
         "output_separator": "new line"
       }

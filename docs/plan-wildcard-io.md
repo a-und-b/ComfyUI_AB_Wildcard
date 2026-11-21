@@ -16,6 +16,15 @@ Found while building (frontend 1.58):
 - `DynamicCombo.Input` takes no `advanced` argument; it goes through `extra_dict`.
 - V3 classes register fine through the existing `NODE_CLASS_MAPPINGS`.
 - Save mode labels became plain words: add new lines · add all lines · replace file.
+
+Found after release (2026-11-21, dd-machine: frontend 1.59.6 + comfyui-agent-panel 0.15.184):
+- A DynamicCombo child id must never equal a top-level input name. The panel's
+  `reconcileGraphDynamicWidgets` (load and every graphToPrompt) takes such a
+  top-level widget for a stale DynamicCombo row and removes it; on 1.59 the
+  removal half-fails (`widgetId` is getter-only), leaving a duplicate `operation`
+  widget and a graph that can't be queued. Text Lines' filter field `text`
+  collided with the node's `text` input, so it is now `this text` (branch `fix/text-lines-name-collision`).
+  Saved graphs load unchanged: child values are restored by position.
 Format note: this repo has no `.ab/`; the plan lives here like the other `docs/plan-*.md`.
 
 ## UX rework (agreed with Holger 2026-11-21, built) — supersedes the node specs below
