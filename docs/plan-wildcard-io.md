@@ -1,6 +1,7 @@
 # Plan: wildcard file I/O and text operator nodes (AB Wildcard 1.7.0)
 
-Status: built on branch `feat/wildcard-io`, version 1.7.0, not merged or released.
+Status: 1.7.0 built on branch `feat/wildcard-io`, not merged or released. UX rework
+agreed (section below), not built yet.
 Checked: pytest (65) and syntax tests green; live in the test ComfyUI (frontend
 1.58, Nodes 2.0) — example workflow saves, reloads with correct widget values,
 runs: Load → "amber, coral, teal", `__my/colors__` resolved without Refresh.
@@ -11,6 +12,63 @@ not `forceInput`. A forceInput socket next to a `seed` widget made frontend 1.58
 restore every saved widget value one slot too early (reproduced with test node
 defs; Save, Load and Prompt Mix are not affected). The widget can still be linked.
 Format note: this repo has no `.ab/`; the plan lives here like the other `docs/plan-*.md`.
+
+## UX rework (agreed with Holger 2026-11-21) — supersedes the node specs below
+
+Why: the built nodes work but are unpleasant to use: AB Text Lines shows 11
+fields for a one-field job, regex and `\n` escapes leak developer language, the
+example needs a regex trick, Load shows a `file` that its `name` input silently
+overrides, and Prompt Mix's `weight` means two different things. Audience is
+both Holger (power user) and non-developer creatives: plain defaults, expert
+fields folded away.
+
+Agreed decisions:
+1. **V3 node API** (`comfy_api.latest.io.ComfyNode`) for the four new nodes;
+   AB Wildcard itself stays V1. The pack then needs a current ComfyUI
+   (tested: 0.45.2, frontend 1.58 — also what dd-machine runs).
+2. **AB Text Lines = one node, `operation` dropdown (DynamicCombo)**; only the
+   chosen operation's fields show. Several steps = several nodes in a row.
+   - sort: `direction` (A → Z, Z → A, reverse order)
+   - filter: `keep lines that` (contain, don't contain, start with, end with,
+     are exactly, match regex) + `text`
+   - replace: `find`, `replace with`; `use regex` under advanced
+   - remove duplicates: no fields (`ignore case` under advanced)
+   - shuffle: `seed`
+   - split and join: `split at` / `join with`
+   Lines are always trimmed and empty ones dropped.
+3. **No regex by default**: plain matching, any case; regex is the last
+   `keep lines that` option and an advanced toggle on replace.
+4. **Separators as a dropdown**: new line, comma, space, custom (a text field
+   appears only for custom). No `\n` escapes in the UI. Outside "split and join"
+   they sit under advanced, default new line.
+5. **Save shows the whole file**: `text` is a multiline widget (type a list or
+   link one), outputs are the file's full content after saving: `text`, `lines`,
+   `count`. Load drops its `name` input and keeps only the `file` dropdown.
+6. **Prompt Mix**: `mode` as DynamicCombo — "some pieces (each by chance)" shows
+   `chance 1–4` in % (0–100, default 100); "one piece (weighted)" shows
+   `weight 1–4`. Four fixed text sockets. Separator dropdown as in 4.
+7. **Two small examples instead of one big one**: "Build a list" (Save with a
+   typed list → Preview; Load → Text Lines sort → Preview) and "Mix pieces"
+   (three Text nodes → Prompt Mix → AB Wildcard → Preview). No regex trick.
+
+Technical facts checked in the test install (0.45.2 / frontend 1.58):
+- `DynamicCombo`, `Autogrow` and the `advanced` input flag exist in
+  `comfy_api/latest/_io.py`; the frontend hides `advanced` inputs behind a
+  toggle and handles `COMFY_DYNAMICCOMBO_V3`.
+- `Autogrow` takes exactly one template input and turns widgets into sockets,
+  so it cannot carry a weight per slot; `DynamicSlot` (slot + extra fields)
+  exists in Python but the frontend 1.58 bundle does not know it. Hence four
+  fixed slots in Prompt Mix.
+- ComfyUI's loader takes `NODE_CLASS_MAPPINGS` first; `io.ComfyNode` exposes a
+  V1-compatible `INPUT_TYPES`, so V1 and V3 classes should share the mapping.
+  **Verify first when building** (if not: register V3 nodes via `comfy_entrypoint`
+  in a second module).
+- Tests run without ComfyUI: pure logic moves to `ops.py` (no ComfyUI imports,
+  tested by pytest), `tools.py` keeps thin V3 wrappers. The roundtrip check
+  (serialize → configure keeps every widget value) runs in the test instance.
+
+Not doing: own JS widgets (the built-in dynamic inputs cover it; JS would break
+on frontend updates), growing slot count in Prompt Mix (needs DynamicSlot).
 
 ## Context
 
