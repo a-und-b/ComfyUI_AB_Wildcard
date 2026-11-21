@@ -1,19 +1,24 @@
 # Plan: wildcard file I/O and text operator nodes (AB Wildcard 1.7.0)
 
-Status: 1.7.0 built on branch `feat/wildcard-io`, not merged or released. UX rework
-agreed (section below), not built yet.
-Checked: pytest (65) and syntax tests green; live in the test ComfyUI (frontend
-1.58, Nodes 2.0) — example workflow saves, reloads with correct widget values,
-runs: Load → "amber, coral, teal", `__my/colors__` resolved without Refresh.
-Not checked: the Legacy (non-Vue) renderer; Holger's hand test.
+Status: UX rework built on branch `feat/wildcard-io` (version 1.7.0), not merged
+or released. Checked: pytest (67) and syntax tests green; live in the test ComfyUI
+(0.45.2, frontend 1.58, Nodes 2.0): every operation runs with the expected output,
+a full graph survives save → reload with every widget value intact, both example
+workflows run. Not checked: the Legacy (non-Vue) renderer; Holger's hand test.
 
-Deviation found while building: AB Text Lines takes `text` as a multiline widget,
-not `forceInput`. A forceInput socket next to a `seed` widget made frontend 1.58
-restore every saved widget value one slot too early (reproduced with test node
-defs; Save, Load and Prompt Mix are not affected). The widget can still be linked.
+Found while building (frontend 1.58):
+- Socket-only inputs (`forceInput`) next to a seed widget, or ahead of a
+  DynamicCombo, make saved widget values land in the wrong widget or reset on
+  load. Hence: Text Lines `text`, Save `text` and the Prompt Mix pieces are text
+  widgets (still linkable), not sockets.
+- Fields inside a DynamicCombo show their id, not `display_name`, so those ids
+  are the readable labels (`keep lines that`, `chance 1 %`).
+- `DynamicCombo.Input` takes no `advanced` argument; it goes through `extra_dict`.
+- V3 classes register fine through the existing `NODE_CLASS_MAPPINGS`.
+- Save mode labels became plain words: add new lines · add all lines · replace file.
 Format note: this repo has no `.ab/`; the plan lives here like the other `docs/plan-*.md`.
 
-## UX rework (agreed with Holger 2026-11-21) — supersedes the node specs below
+## UX rework (agreed with Holger 2026-11-21, built) — supersedes the node specs below
 
 Why: the built nodes work but are unpleasant to use: AB Text Lines shows 11
 fields for a one-field job, regex and `\n` escapes leak developer language, the

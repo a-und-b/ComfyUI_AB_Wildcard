@@ -25,18 +25,22 @@ def _txt_files():
 
 
 def _separator(id, label, first="new line", advanced=False):
-    """Separator dropdown; a text field appears only for 'custom'. `first` is the default."""
+    """Separator dropdown; a text field appears only for 'custom'. `first` is the default.
+
+    Fields inside a DynamicCombo show their id, not display_name (frontend 1.58), so
+    ids there are the readable labels.
+    """
     names = [first] + [s for s in ops.SEPARATORS if s != first]
     return io.DynamicCombo.Input(id, display_name=label, options=[
-        io.DynamicCombo.Option(n, [io.String.Input("custom_text", display_name="custom text")] if n == "custom" else [])
+        io.DynamicCombo.Option(n, [io.String.Input("custom text")] if n == "custom" else [])
         for n in names
     ], extra_dict={"advanced": True} if advanced else None)  # DynamicCombo.Input takes no `advanced` arg
 
 
 def _sep(value):
     """DynamicCombo value -> (choice, custom) for ops.split / ops.join."""
-    choice = next(v for k, v in value.items() if k != "custom_text")
-    return choice, value.get("custom_text", "")
+    choice = next(v for k, v in value.items() if k != "custom text")
+    return choice, value.get("custom text", "")
 
 
 def _lines_out(items):
@@ -126,22 +130,22 @@ class ABTextLines(io.ComfyNode):
                 io.DynamicCombo.Input("operation", options=[
                     Opt("sort", [io.Combo.Input("direction", options=ops.SORTS)]),
                     Opt("filter", [
-                        io.Combo.Input("keep_lines_that", display_name="keep lines that", options=ops.MATCHES),
-                        S("match_text", display_name="text", tooltip="Empty keeps every line"),
+                        io.Combo.Input("keep lines that", options=ops.MATCHES),
+                        S("text", tooltip="Empty keeps every line"),
                     ]),
                     Opt("replace", [
                         S("find", tooltip="Any case; empty changes nothing"),
-                        S("replace_with", display_name="replace with"),
-                        io.Boolean.Input("use_regex", display_name="use regex", default=False, advanced=True,
+                        S("replace with"),
+                        io.Boolean.Input("use regex", default=False, advanced=True,
                                          tooltip="find is a regular expression (case-sensitive); replace with may use \\1"),
                     ]),
                     Opt("remove duplicates", [
-                        io.Boolean.Input("ignore_case", display_name="ignore case", default=False, advanced=True),
+                        io.Boolean.Input("ignore case", default=False, advanced=True),
                     ]),
                     Opt("shuffle", [io.Int.Input("seed", default=0, min=0, max=UINT64, control_after_generate=True)]),
                     Opt("split and join", [
-                        _separator("split_at", "split at", "comma"),
-                        _separator("join_with", "join with", "new line"),
+                        _separator("split at", "split at", "comma"),
+                        _separator("join with", "join with", "new line"),
                     ]),
                 ]),
                 _separator("input_separator", "lines in text split at", advanced=True),
@@ -157,23 +161,23 @@ class ABTextLines(io.ComfyNode):
     def execute(cls, text, operation, input_separator, output_separator):
         op = operation["operation"]
         if op == "split and join":
-            input_separator, output_separator = operation["split_at"], operation["join_with"]
+            input_separator, output_separator = operation["split at"], operation["join with"]
         items = ops.split(text, *_sep(input_separator))
         if op == "sort":
             items = ops.sort_lines(items, operation["direction"])
         elif op == "filter":
-            items = ops.filter_lines(items, operation["keep_lines_that"], operation["match_text"])
+            items = ops.filter_lines(items, operation["keep lines that"], operation["text"])
         elif op == "replace":
-            items = ops.replace_lines(items, operation["find"], operation["replace_with"], operation["use_regex"])
+            items = ops.replace_lines(items, operation["find"], operation["replace with"], operation["use regex"])
         elif op == "remove duplicates":
-            items = ops.remove_duplicates(items, operation["ignore_case"])
+            items = ops.remove_duplicates(items, operation["ignore case"])
         elif op == "shuffle":
             items = ops.shuffle_lines(items, operation["seed"])
         return io.NodeOutput(ops.join(items, *_sep(output_separator)), items, len(items))
 
 
 MIX_SLOTS = 4  # ponytail: fixed; growing slots with a weight each need DynamicSlot (frontend 1.58 lacks it)
-SOME, ONE = "some pieces (each by chance)", "one piece (by weight)"
+SOME, ONE = "each by chance", "one by weight"
 
 
 class ABPromptMix(io.ComfyNode):
@@ -192,12 +196,12 @@ class ABPromptMix(io.ComfyNode):
                 # frontend 1.58 drop saved values on load. Linking a text still works.
                 *[io.String.Input(f"text_{i}", display_name=f"piece {i}", default="",
                                   tooltip="Type a prompt piece or connect a text") for i in slots],
-                io.DynamicCombo.Input("use", options=[
+                io.DynamicCombo.Input("pick", options=[
                     io.DynamicCombo.Option(SOME, [
-                        io.Int.Input(f"chance_{i}", display_name=f"chance {i} %", default=100, min=0, max=100,
+                        io.Int.Input(f"chance {i} %", default=100, min=0, max=100,
                                      display_mode=io.NumberDisplay.slider) for i in slots]),
                     io.DynamicCombo.Option(ONE, [
-                        io.Float.Input(f"weight_{i}", display_name=f"weight {i}", default=1.0, min=0.0, max=10.0,
+                        io.Float.Input(f"weight {i}", default=1.0, min=0.0, max=10.0,
                                        step=0.1) for i in slots]),
                 ]),
                 io.Int.Input("seed", default=0, min=0, max=UINT64, control_after_generate=True),
@@ -207,10 +211,10 @@ class ABPromptMix(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, use, seed, separator, **pieces):
+    def execute(cls, pick, seed, separator, **pieces):
         texts = [(pieces.get(f"text_{i}") or "").strip() for i in range(1, MIX_SLOTS + 1)]
-        if use["use"] == SOME:
-            used = ops.mix(texts, chances=[use[f"chance_{i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
+        if pick["pick"] == SOME:
+            used = ops.mix(texts, chances=[pick[f"chance {i} %"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
         else:
-            used = ops.mix(texts, weights=[use[f"weight_{i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
+            used = ops.mix(texts, weights=[pick[f"weight {i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
         return io.NodeOutput(ops.join(used, *_sep(separator)))

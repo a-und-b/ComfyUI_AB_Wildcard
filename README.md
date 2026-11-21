@@ -55,9 +55,13 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 ![Sequences example workflow: six runs with the seed on increment](example_workflows/ab-wildcard-sequences.gif)
 
-**Tools** — [`ab-wildcard-tools.json`](example_workflows/ab-wildcard-tools.json): a list saved with **AB Wildcard Save**, read back with **AB Wildcard Load** and sorted with **AB Text Lines**; a second **AB Text Lines** turns the saved name into `__my/colors__ fur`, **AB Prompt Mix** lets that piece through half the time, and **AB Wildcard** resolves it (see [Wildcard Files and Text Tools](#wildcard-files-and-text-tools)).
+**Build a list** — [`ab-wildcard-list.json`](example_workflows/ab-wildcard-list.json): **AB Wildcard Save** adds a typed list to `my/colors` and shows the whole file; **AB Wildcard Load** reads `examples/colors` and **AB Text Lines** keeps the lines that start with `b` (see [Wildcard Files and Text Tools](#wildcard-files-and-text-tools)).
 
-![Tools example workflow: save, load, sort, mix and resolve](example_workflows/ab-wildcard-tools-preview.png)
+![Build a list example workflow: save a list, load a file and filter it](example_workflows/ab-wildcard-list-preview.png)
+
+**Mix pieces** — [`ab-wildcard-mix.json`](example_workflows/ab-wildcard-mix.json): **AB Prompt Mix** always uses `a cat`, adds `__examples/colors__ fur` in half the runs and `in the rain` in 30 %; **AB Wildcard** resolves the result.
+
+![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
 
 1. Load a workflow file.
 2. Edit the prompt text.
@@ -77,37 +81,38 @@ This node is **pure text processing** — it takes text input and outputs proces
 
 ## Wildcard Files and Text Tools
 
-Four more nodes in **AB Utils** build and shape wildcard files inside a graph.
+Four more nodes in **AB Utils** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
 
-**AB Wildcard Save** writes its `text` input, one entry per line, to `ComfyUI/wildcards/<name>.txt` (subfolders allowed: `my/colors`).
+**AB Wildcard Save** saves lines as `ComfyUI/wildcards/<name>.txt` (subfolders allowed: `my/colors`). Type the list into `text` or connect one.
 
-- `mode`: **overwrite**, **append**, or **append unique** (skips lines already in the file and repeats in the input).
-- Lines are trimmed, empty lines dropped. Names with `..`, absolute paths, or a leading `~ @ !` are refused.
-- The file is usable as `__my/colors__` in the same run, no **Refresh Wildcards** needed. The `name` output feeds **AB Wildcard Load**.
-- ComfyUI skips a node whose inputs did not change, so queuing the same text again does not append it twice.
+- `mode`: **add new lines** (only lines the file doesn't have yet), **add all lines**, or **replace file**.
+- Outputs the whole file after saving: `text`, `lines` (a list: nodes after it run once per line) and `count`.
+- The file works as `__my/colors__` right away, no **Refresh Wildcards** needed.
+- Lines are trimmed and empty ones dropped. Names with `..`, absolute paths or a leading `~ @ !` are refused.
+- ComfyUI skips a node whose inputs didn't change, so queuing the same text again doesn't add it twice.
 
-**AB Wildcard Load** reads a `.txt` wildcard file, picked in `file` or given by the `name` input (which wins).
+**AB Wildcard Load** reads a `.txt` wildcard file chosen in `file`, with the same three outputs. Comments and empty lines are left out, as in `__name__`. New files appear in the list after reloading the browser page.
 
-- Outputs: `text` (all lines), `lines` (a list: nodes after it run once per line) and `count`.
-- Comments and empty lines are left out, as in `__name__`. It reads the file fresh on every run.
-- New files show up in the `file` dropdown after a browser reload.
+**AB Text Lines** does one job on a list of lines. Pick it in `operation`; only its fields show:
 
-**AB Text Lines** does the usual line jobs in one node. The steps run in this order and each is off at its default:
+| operation | fields |
+|-----------|--------|
+| sort | `direction`: A → Z, Z → A, reverse order |
+| filter | `keep lines that` contain, don't contain, start with, end with, are exactly, match regex · `text` |
+| replace | `find`, `replace with` · advanced: `use regex` (then `\1` inserts a group) |
+| remove duplicates | advanced: `ignore case` |
+| shuffle | `seed` |
+| split and join | `split at`, `join with`: new line, comma, space or custom |
 
-```text
-split_by → find / replace → trim, drop empty (always) → keep → drop → dedupe → order → join_with
-```
+- Matching is plain text and ignores case, unless you choose regex.
+- Lines are always trimmed and empty ones dropped. For several jobs, chain several nodes.
+- By default the text is split at new lines and the output joined with new lines; change both under advanced.
 
-- `split_by` / `join_with`: `\n` is a newline, `\t` a tab. Example: `split_by` `,` and `join_with` `\n` turns a comma list into lines.
-- `find` / `keep` / `drop`: plain text, any case. Switch on `regex` for regular expressions (case-sensitive); `replace` then accepts `\1` for groups.
-- `order`: as is, sort, sort desc, reverse, shuffle (by `seed`).
-- Outputs like Load: `text`, `lines`, `count`.
+**AB Prompt Mix** decides which prompt pieces get into a prompt. Type up to four pieces or connect them, then choose in `pick`:
 
-**AB Prompt Mix** controls which prompt pieces get into a prompt. Wire up to four pieces into `text_1` … `text_4`:
-
-- **each by chance**: every piece is used with the probability in its `weight` (1 = always, 0.5 = half the runs, 0 = never), joined with `separator` in slot order.
-- **pick one weighted**: exactly one piece, chosen by the weights relative to each other.
-- Same `seed`, same result. The mix has its own random generator, so it does not shift the picks of the AB Wildcard node.
+- **each by chance**: every piece is used with its `chance %` (100 = always, 50 = half the runs, 0 = never), joined in slot order.
+- **one by weight**: exactly one piece, chosen by the weights relative to each other.
+- Same `seed`, same result. The mix has its own random generator, so it doesn't shift the picks of the AB Wildcard node. Pieces are joined with a comma; change it under advanced.
 
 ---
 
@@ -372,7 +377,7 @@ __examples/lighting__,
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
 3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
 4. **Find and replace** — Cmd/Ctrl+F in the text field; switch to Wildcards to search file and card contents
-5. **Grow a list** — LLM or list node → **AB Wildcard Save** (append unique) builds a wildcard file over many runs
+5. **Grow a list** — LLM or list node → **AB Wildcard Save** (add new lines) builds a wildcard file over many runs
 6. **Debug** — Check the console for processing errors
 
 ---
