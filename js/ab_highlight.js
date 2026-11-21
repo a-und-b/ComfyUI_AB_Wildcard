@@ -6,7 +6,7 @@
 // diagnostic underlines. Works in the legacy canvas and in Nodes 2.0: attach is
 // idempotent and re-runs from a MutationObserver, because Nodes 2.0 re-creates
 // the textarea (collapse/expand, tab switch).
-import { tokenize } from "./ab_syntax.js";
+import { tokenize, findMatches, replaceAll } from "./ab_syntax.js";
 
 const CSS = `
 .ab-hl-ta { color: transparent !important; background: transparent !important; position: relative; z-index: 1; caret-color: var(--ab-hl-text); }
@@ -40,6 +40,13 @@ const CSS = `
 .ab-t-ifKw, .ab-t-ifSep, .ab-t-fn { color: var(--ab-hl-kw); }
 .ab-m { background: var(--ab-hl-match); border-radius: 2px; }
 .ab-m-cur { background: var(--ab-hl-match-cur); box-shadow: 0 0 0 1px var(--ab-hl-match-line); }
+.ab-find { position: absolute; z-index: 3; display: grid; gap: 3px; padding: 4px; border-radius: 6px; font: 12px/1.3 system-ui, sans-serif; background: var(--ab-hl-status-bg); color: var(--ab-hl-text); box-shadow: 0 0 0 1px var(--ab-hl-status-line), 0 2px 8px rgba(0,0,0,.3); }
+.ab-find[hidden] { display: none; }
+.ab-find div { display: flex; gap: 3px; align-items: center; }
+.ab-find input { flex: 1; min-width: 0; width: 110px; font: inherit; padding: 2px 4px; color: var(--ab-hl-text); background: transparent; border: 1px solid var(--ab-hl-status-line); border-radius: 3px; }
+.ab-find button { font: inherit; padding: 1px 6px; cursor: pointer; color: var(--ab-hl-text); background: transparent; border: 1px solid var(--ab-hl-status-line); border-radius: 3px; }
+.ab-find button:hover { background: var(--ab-hl-match); }
+.ab-find .ab-find-count { min-width: 40px; text-align: center; opacity: .8; }
 .ab-d-error { text-decoration: underline wavy var(--ab-hl-error); text-underline-offset: 2px; }
 .ab-d-warning { text-decoration: underline wavy var(--ab-hl-warning); text-underline-offset: 2px; }
 .ab-d-info { text-decoration: underline dotted var(--ab-hl-info); text-underline-offset: 2px; }
@@ -101,11 +108,106 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     m.style.borderWidth = `${cs.borderTopWidth} ${cs.borderRightWidth} ${cs.borderBottomWidth} ${cs.borderLeftWidth}`;
     const result = tokenize(t.value, getKnown());
     t.__abResult = result;
-    m.innerHTML = render(t.value, { ...result, ...t.__abFind });
+    const f = t.__abFind;
+    if (f) {
+      f.matches = findMatches(t.value, f.query);
+      f.current = f.matches.length ? Math.min(Math.max(f.current, 0), f.matches.length - 1) : -1;
+      t.__abBar.querySelector(".ab-find-count").textContent = f.query ? `${f.matches.length ? f.current + 1 : 0} / ${f.matches.length}` : "";
+      t.__abBar.style.top = t.offsetTop + 4 + "px";
+      t.__abBar.style.left = Math.max(t.offsetLeft, t.offsetLeft + t.offsetWidth - t.__abBar.offsetWidth - 20) + "px";
+    }
+    m.innerHTML = render(t.value, { ...result, ...f });
+    if (f?.reveal) {
+      f.reveal = false;
+      const el = m.querySelector(".ab-m-cur");
+      if (el && (el.offsetTop < t.scrollTop || el.offsetTop + el.offsetHeight > t.scrollTop + t.clientHeight)) {
+        t.scrollTop = el.offsetTop - t.clientHeight / 2;
+      }
+    }
     m.scrollTop = t.scrollTop;
     m.scrollLeft = t.scrollLeft;
     status(t);
   }
+
+  // ---- Find and replace (Cmd/Ctrl+F while the field has focus) ----
+  function openFind(t) {
+    if (!t.__abBar) {
+      const b = document.createElement("div"); b.className = "ab-find";
+      b.innerHTML = `<div><input class="ab-find-q" placeholder="Find" aria-label="Find"><span class="ab-find-count"></span><button data-a="prev" title="Previous (Shift+Enter)">&#8593;</button><button data-a="next" title="Next (Enter)">&#8595;</button><button data-a="close" title="Close (Esc)">&#10005;</button></div><div><input class="ab-find-r" placeholder="Replace" aria-label="Replace"><button data-a="one">Replace</button><button data-a="all">All</button></div>`;
+      t.parentElement.appendChild(b);
+      t.__abBar = b;
+      const q = b.querySelector(".ab-find-q"), r = b.querySelector(".ab-find-r");
+      q.addEventListener("input", () => { t.__abFind.query = q.value; t.__abFind.current = 0; t.__abFind.reveal = true; schedule(t); });
+      b.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { e.preventDefault(); closeFind(t); }
+        else if (e.key === "Enter") { e.preventDefault(); if (e.target === r) replaceOne(t, r.value); else stepFind(t, e.shiftKey ? -1 : 1); }
+      });
+      b.addEventListener("mousedown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+      // Nodes 2.0 selects/drags the node on pointer events and can swallow the focus change.
+      for (const ev of ["pointerdown", "mousedown", "click"]) b.addEventListener(ev, (e) => e.stopPropagation());
+      b.addEventListener("click", (e) => {
+        const a = e.target.closest("button")?.dataset.a;
+        if (a === "prev") stepFind(t, -1); else if (a === "next") stepFind(t, 1);
+        else if (a === "close") closeFind(t);
+        else if (a === "one") replaceOne(t, r.value); else if (a === "all") replaceEvery(t, r.value);
+      });
+    }
+    const sel = t.value.slice(t.selectionStart, t.selectionEnd);
+    const q = t.__abBar.querySelector(".ab-find-q");
+    if (sel && !sel.includes("\n")) q.value = sel;
+    t.__abFind = { query: q.value, current: 0, matches: [], reveal: true };
+    t.__abBar.hidden = false;
+    schedule(t);
+    q.focus(); q.select();
+  }
+
+  function closeFind(t) {
+    if (!t.__abFind) return;
+    t.__abFind = undefined;
+    t.__abBar.hidden = true;
+    t.focus();
+    schedule(t);
+  }
+
+  function stepFind(t, dir) {
+    const f = t.__abFind, n = f?.matches.length;
+    if (!n) return;
+    f.current = (f.current + dir + n) % n; f.reveal = true;
+    schedule(t);
+  }
+
+  // Through execCommand so native undo survives and the field fires "input" (widget sync).
+  function insert(t, start, end, text) {
+    t.focus({ preventScroll: true });
+    t.setSelectionRange(start, end);
+    document.execCommand("insertText", false, text);
+  }
+
+  function replaceOne(t, text) {
+    const f = t.__abFind, m = f?.matches[f.current];
+    if (!m) return;
+    insert(t, m.start, m.end, text);
+    f.reveal = true; // the next match slides into the same index
+    t.__abBar.querySelector(".ab-find-r").focus();
+  }
+
+  function replaceEvery(t, text) {
+    const f = t.__abFind;
+    if (!f?.matches.length) return;
+    insert(t, 0, t.value.length, replaceAll(t.value, f.query, text));
+    t.__abBar.querySelector(".ab-find-r").focus();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "f") {
+      const bar = t.closest?.(".ab-find");
+      if (t.__abMirror) openFind(t);
+      else if (bar) bar.querySelector(".ab-find-q").select();
+      else return;
+      e.preventDefault(); e.stopPropagation();
+    } else if (e.key === "Escape" && t.__abFind) closeFind(t);
+  }, true);
 
   function status(t) {
     const s = t.__abStatus;
