@@ -41,7 +41,7 @@ Agreed with Holger:
    digit or `_` opens the popup: `<co` yes, `a < b` no. `a <b` in prose would
    open it, but only if `b…` fuzzy-matches a wildcard, and Space closes it.
    `<[` stays the tag trigger.
-4. **Modifiers after `$name.`** (`.clean .upper .lower .title`): a fixed list
+4. **Modifiers after `$name.`, from the first letter** (a bare `$a.` at a sentence end must not hijack Enter) (`.clean .upper .lower .title`): a fixed list
    of four, same popup, one more `kind`.
 
 ## Not in scope

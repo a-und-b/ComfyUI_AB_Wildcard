@@ -81,6 +81,7 @@ assert.equal(ctx("<lora:x"), null);
 assert.equal(ctx("<[co"), "tag:co");
 assert.equal(ctx("__co"), "wildcard:co");
 assert.equal(ctx("$color.cl"), "modifier:cl");
+assert.equal(ctx("costs $color."), null);
 assert.equal(ctx("$color.upper.ti"), "modifier:ti");
 assert.equal(ctx("plain text"), null);
 {

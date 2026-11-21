@@ -329,9 +329,10 @@ export const MODIFIERS = ["clean", "upper", "lower", "title"];
 // What is the user typing at the end of `before` (the text up to the cursor)?
 // -> { kind: "modifier" | "variable" | "tag" | "wildcard", query, start, opener } or null.
 // opener is "." for modifiers, "$" for variables, "<[" for tags, "__" or "<" for wildcards.
+// Modifiers open from the first letter after the dot (a sentence-ending "$a." stays quiet).
 // `{2$$` and "$5" are not variables; "a < b" is not a wildcard.
 export function completionContext(before) {
-  let m = /\$[A-Za-z0-9_]+(?:\.[A-Za-z_]+)*(\.)([A-Za-z_]*)$/.exec(before);
+  let m = /\$[A-Za-z0-9_]+(?:\.[A-Za-z_]+)*(\.)([A-Za-z_]+)$/.exec(before);
   if (m) return { kind: "modifier", query: m[2], start: m.index + m[0].length - m[2].length - 1, opener: "." };
   m = /(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)?$/.exec(before);
   if (m) return { kind: "variable", query: m[1] || "", start: m.index, opener: "$" };

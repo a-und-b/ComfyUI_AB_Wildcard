@@ -75,7 +75,7 @@ Two ways to insert tokens without memorizing names:
 
 - **Autocomplete** — type `__` (or `<` directly followed by a letter, e.g. `<co`) for
   wildcards/card titles, `<[` for tags, `$` for variables (`globals.yaml` names plus every
-  `$name = …` in the field, wherever it is defined) and `$name.` for the modifiers
+  `$name = …` in the field, wherever it is defined) and `$name.c` (first letter after the dot) for the modifiers
   `clean`, `upper`, `lower`, `title`.
   Navigate with arrow keys, accept with **Tab/Enter or mouse click**.
 - **Dropdowns** — the node's **Wildcards** and **Tags** combos insert the
@@ -302,7 +302,7 @@ __examples/lighting__,
 
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
-3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.` (modifiers); accept with Tab/Enter or click
+3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
 4. **Debug** — Check the console for processing errors
 
 ---
