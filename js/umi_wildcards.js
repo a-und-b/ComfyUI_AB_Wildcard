@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { installHighlighter } from "./ab_highlight.js";
+import { completionContext, completionText, variableNames, MODIFIERS } from "./ab_syntax.js";
 
 // =============================================================================
 // PART 1: AUTOCOMPLETE LOGIC (Enhanced with Fuzzy Search)
@@ -461,23 +462,21 @@ app.registerExtension({
             const cursor = inputEl.selectionStart;
             const text = inputEl.value;
             const beforeCursor = text.substring(0, cursor);
-            // Group 1: opener (__ or <[), Group 2: query
-            const matchFile = beforeCursor.match(/(__|<\[)([\w\/\-\s]*)$/);
-            if (!matchFile) { ext.popup.hide(); return; }
+            const ctx = completionContext(beforeCursor);
+            if (!ctx) { ext.popup.hide(); return; }
 
-            const opener = matchFile[1];
-            const query = matchFile[2];
-            const matchIndex = matchFile.index;
-            // <[ -> card Tags ; __ -> wildcards (files + card titles)
-            const source = (opener === "<[") ? (ext.tags || []) : (ext.wildcards || []);
-            const options = getFuzzyMatches(query, source);
+            const source = ctx.kind === "tag" ? (ext.tags || [])
+                : ctx.kind === "variable" ? variableNames(text, ext.globals)
+                : ctx.kind === "modifier" ? MODIFIERS
+                : (ext.wildcards || []);
+            const options = getFuzzyMatches(ctx.query, source);
             if (!options.length) { ext.popup.hide(); return; }
 
             const rect = inputEl.getBoundingClientRect();
             const topOffset = rect.top + 20 + (rect.height / 2);
             ext.popup.show(rect.left + 20, topOffset, options, (selected) => {
-                const completion = (opener === "<[") ? `<[${selected}]>` : `__${selected}__`;
-                const prefix = text.substring(0, matchIndex);
+                const completion = completionText(ctx, selected);
+                const prefix = text.substring(0, ctx.start);
                 const suffix = text.substring(cursor);
                 inputEl.value = prefix + completion + suffix;
                 // Sync the widget value: assigning .value does NOT fire "input",

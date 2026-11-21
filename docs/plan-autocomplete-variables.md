@@ -1,6 +1,6 @@
 # Plan: autocomplete for `$variables` and `<name>`
 
-Status: agreed with Holger, not started. Written against 1.3.1.
+Status: step 1 (pure functions + tests) done; steps 2 (wiring) and 3 (docs) open. Written against 1.3.1.
 Format note: this repo has no `.ab/`; the plan lives here like
 `plan-syntax-highlighting.md`, so any session can pick it up.
 
