@@ -35,7 +35,8 @@ paste, autocomplete and the serialized value behaving exactly as before.
 - Changing the Python engine or its grammar. Where the engine is lenient, the
   highlighter follows it and, at most, warns.
 - `$` and `<name>` autocomplete. Likely a follow-up that reuses the tokenizer
-  (variables defined in the text are found by scanning); noted, not planned here.
+  (variables defined in the text are found by scanning); planned in
+  `plan-autocomplete-variables.md`.
 - (Done) `globals.yaml` variable names are served by the endpoint as `globals`.
 
 ## Architecture
