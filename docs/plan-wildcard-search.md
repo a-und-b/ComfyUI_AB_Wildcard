@@ -1,6 +1,9 @@
 # Plan: search wildcard and card contents from the node
 
-Status: step 1 built (endpoint + tests), steps 2 and 3 open. Written against 1.5.0 (find and replace in
+Status: built (steps 1–3), not released; version 1.6.0 in `pyproject.toml`.
+Checks 1–3 passed with real keys and clicks in Nodes 2.0 and Legacy; undo was
+checked with `execCommand('undo')` (real Cmd+Z does not reach the built-in
+browser), so Cmd/Ctrl+Z still wants Holger's hand test. Written against 1.5.0 (find and replace in
 the field, `plan-text-search.md`).
 Format note: this repo has no `.ab/`; the plan lives here like the other
 `docs/plan-*.md`, so any session can pick it up.

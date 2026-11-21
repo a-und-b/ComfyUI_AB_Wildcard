@@ -119,6 +119,15 @@ Click into the text field and press **Cmd/Ctrl+F**. A small bar opens on the fie
 - **Replace** swaps the current match, **All** swaps every match. One **Cmd/Ctrl+Z** in the field undoes the last replace.
 - **Esc** closes the bar and puts the caret back in the field. Cmd/Ctrl+F outside the field is unchanged.
 
+### Search wildcards by content
+
+Switch the bar from **Text** to **Wildcards** to search your wildcard files and cards instead of the text field:
+
+- Type at least two characters, e.g. `emerald`. One row per insertable token appears: the name (cards in colour), the first matching line as a preview, and `+n` for further matching lines.
+- Files match on their name and every line (csv: every cell); cards on title, prompts, description and tags. Case-insensitive, plain text; name matches are listed first, at most 50 rows.
+- **Arrow Up/Down** and **Enter**, or a click, insert `__token__` at the caret and close the bar. One **Cmd/Ctrl+Z** removes it again.
+- Edited files show up after **Refresh Wildcards**, like autocomplete. The bar reopens in the mode you last used.
+
 ---
 
 ## Syntax Reference
@@ -318,7 +327,7 @@ __examples/lighting__,
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
 3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
-4. **Find and replace** — Cmd/Ctrl+F in the text field
+4. **Find and replace** — Cmd/Ctrl+F in the text field; switch to Wildcards to search file and card contents
 5. **Debug** — Check the console for processing errors
 
 ---
