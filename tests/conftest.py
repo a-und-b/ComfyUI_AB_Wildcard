@@ -39,3 +39,19 @@ if "folder_paths" not in sys.modules:
     fp.models_dir = os.path.join(ROOT, "tests", "_no_models")
     fp.get_folder_paths = lambda *_a, **_k: []
     sys.modules["folder_paths"] = fp
+
+# --- stub: comfy_api.latest.io (pytest imports the pack's __init__, which imports
+# tools.py; its logic is tested via ops.py). Only what tools.py touches at import time.
+if "comfy_api" not in sys.modules:
+    class _Output:
+        def __init__(self, *_a, **_k):
+            pass
+
+    latest = types.ModuleType("comfy_api.latest")
+    latest.io = types.SimpleNamespace(
+        ComfyNode=object,
+        String=types.SimpleNamespace(Output=_Output),
+        Int=types.SimpleNamespace(Output=_Output),
+    )
+    sys.modules["comfy_api"] = types.ModuleType("comfy_api")
+    sys.modules["comfy_api.latest"] = latest

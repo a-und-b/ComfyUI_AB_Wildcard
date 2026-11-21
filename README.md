@@ -18,6 +18,8 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Global Presets** — Auto-load variables from `globals.yaml`
 * **In-node Helpers** — Autocomplete (type `__`, `<name`, `<[`, `$`) + Wildcards/Tags dropdowns
 * **Syntax Highlighting** — Colours, variable chips and underlined mistakes while you type
+* **Wildcard Files in the Graph** — Save and load wildcard files through node inputs and outputs
+* **Text Tools** — Line operations in one node, and a mixer that lets prompt pieces through by chance
 
 ---
 
@@ -53,6 +55,16 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 ![Sequences example workflow: six runs with the seed on increment](example_workflows/ab-wildcard-sequences.gif)
 
+**Build a list** — [`ab-wildcard-list.json`](example_workflows/ab-wildcard-list.json): **AB Wildcard Save** adds a typed list to `my/colors` and shows the whole file; **AB Wildcard Load** reads `examples/colors` and **AB Text Lines** keeps the lines that start with `b` (see [Wildcard Files and Text Tools](#wildcard-files-and-text-tools)).
+
+![Build a list example workflow: save a list, load a file and filter it](example_workflows/ab-wildcard-list-preview.png)
+
+**Mix pieces** — [`ab-wildcard-mix.json`](example_workflows/ab-wildcard-mix.json): **AB Prompt Mix** always uses `a cat`, adds `__examples/colors__ fur` in half the runs and `in the rain` in 30 %; **AB Wildcard** resolves the result.
+
+![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
+
+**Full demo** — [`ab-wildcard-demo.json`](example_workflows/ab-wildcard-demo.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
+
 1. Load a workflow file.
 2. Edit the prompt text.
 3. Queue it and read the expanded text in **Preview as Text**.
@@ -66,6 +78,43 @@ This node is **pure text processing** — it takes text input and outputs proces
 | Output | Connect To |
 |--------|-----------|
 | `text` | CLIP Text Encode or any other text input |
+
+---
+
+## Wildcard Files and Text Tools
+
+Four more nodes in **AB Utils** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
+
+**AB Wildcard Save** saves lines as `ComfyUI/wildcards/<name>.txt` (subfolders allowed: `my/colors`). Type the list into `text` or connect one.
+
+- `mode`: **add new lines** (only lines the file doesn't have yet), **add all lines**, or **replace file**.
+- Outputs the whole file after saving: `text`, `lines` (a list: nodes after it run once per line) and `count`.
+- The file works as `__my/colors__` right away, no **Refresh Wildcards** needed.
+- Lines are trimmed and empty ones dropped. Names with `..`, absolute paths or a leading `~ @ !` are refused.
+- ComfyUI skips a node whose inputs didn't change, so queuing the same text again doesn't add it twice.
+
+**AB Wildcard Load** reads a `.txt` wildcard file chosen in `file`, with the same three outputs. Comments and empty lines are left out, as in `__name__`. New files appear in the list after reloading the browser page.
+
+**AB Text Lines** does one job on a list of lines. Pick it in `operation`; only its fields show:
+
+| operation | fields |
+|-----------|--------|
+| sort | `direction`: A → Z, Z → A, reverse order |
+| filter | `keep lines that` contain, don't contain, start with, end with, are exactly, match regex · `text` |
+| replace | `find`, `replace with` · advanced: `use regex` (then `\1` inserts a group) |
+| remove duplicates | advanced: `ignore case` |
+| shuffle | `seed` |
+| split and join | `split at`, `join with`: new line, comma, space or custom |
+
+- Matching is plain text and ignores case, unless you choose regex.
+- Lines are always trimmed and empty ones dropped. For several jobs, chain several nodes.
+- By default the text is split at new lines and the output joined with new lines; change both under advanced.
+
+**AB Prompt Mix** decides which prompt pieces get into a prompt. Type up to four pieces or connect them, then choose in `pick`:
+
+- **each by chance**: every piece is used with its `chance %` (100 = always, 50 = half the runs, 0 = never), joined in slot order.
+- **one by weight**: exactly one piece, chosen by the weights relative to each other.
+- Same `seed`, same result. The mix has its own random generator, so it doesn't shift the picks of the AB Wildcard node. Pieces are joined with a comma; change it under advanced.
 
 ---
 
@@ -330,7 +379,8 @@ __examples/lighting__,
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
 3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
 4. **Find and replace** — Cmd/Ctrl+F in the text field; switch to Wildcards to search file and card contents
-5. **Debug** — Check the console for processing errors
+5. **Grow a list** — LLM or list node → **AB Wildcard Save** (add new lines) builds a wildcard file over many runs
+6. **Debug** — Check the console for processing errors
 
 ---
 
