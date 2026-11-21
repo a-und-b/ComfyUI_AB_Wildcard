@@ -441,6 +441,7 @@ app.registerExtension({
         this.highlighter = installHighlighter({
             resolveTextarea,
             getKnown: () => ({ wildcards: ext.wildcards, tags: ext.tags, globals: ext.globals }),
+            search: async (q) => (await (await fetch("/ab_wildcard/search?q=" + encodeURIComponent(q))).json()).results,
         });
 
         // Navigation while the popup is open (capture phase to pre-empt defaults)

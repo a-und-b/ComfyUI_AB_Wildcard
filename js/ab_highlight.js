@@ -47,6 +47,18 @@ const CSS = `
 .ab-find button { font: inherit; padding: 1px 6px; cursor: pointer; color: var(--ab-hl-text); background: transparent; border: 1px solid var(--ab-hl-status-line); border-radius: 3px; }
 .ab-find button:hover { background: var(--ab-hl-match); }
 .ab-find .ab-find-count { min-width: 40px; text-align: center; opacity: .8; }
+.ab-find .ab-find-mode button[aria-pressed="true"] { background: var(--ab-hl-match); }
+.ab-find.ab-find-wild { width: 300px; }
+.ab-find.ab-find-wild .ab-find-count, .ab-find.ab-find-wild [data-a="prev"], .ab-find.ab-find-wild [data-a="next"], .ab-find.ab-find-wild .ab-find-rep { display: none; }
+.ab-find .ab-find-list { display: block; max-height: 220px; overflow-y: auto; }
+.ab-find .ab-find-list[hidden] { display: none; }
+.ab-find .ab-find-row { cursor: pointer; padding: 2px 4px; border-radius: 3px; }
+.ab-find .ab-find-row[aria-selected="true"] { background: var(--ab-hl-match); }
+.ab-find .ab-find-tok { font-weight: 600; white-space: nowrap; }
+.ab-find .ab-find-card { color: var(--ab-hl-tag); }
+.ab-find .ab-find-prev { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .75; }
+.ab-find .ab-find-more { opacity: .7; white-space: nowrap; }
+.ab-find .ab-find-empty { opacity: .7; padding: 2px 4px; }
 .ab-d-error { text-decoration: underline wavy var(--ab-hl-error); text-underline-offset: 2px; }
 .ab-d-warning { text-decoration: underline wavy var(--ab-hl-warning); text-underline-offset: 2px; }
 .ab-d-info { text-decoration: underline dotted var(--ab-hl-info); text-underline-offset: 2px; }
@@ -88,12 +100,13 @@ export function render(text, { tokens, diagnostics, matches = [], current = -1 }
   return html + "\n"; // trailing newline keeps the last empty line scrollable like the textarea
 }
 
-export function installHighlighter({ resolveTextarea, getKnown }) {
+export function installHighlighter({ resolveTextarea, getKnown, search }) {
   if (!document.getElementById("ab-hl-style")) {
     const st = document.createElement("style");
     st.id = "ab-hl-style"; st.textContent = CSS; document.head.appendChild(st);
   }
   const attached = new Set();
+  let findMode = "text"; // the bar reopens in the mode it was last used in
 
   function paint(t) {
     const m = t.__abMirror;
@@ -138,20 +151,28 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
   function openFind(t) {
     if (!t.__abBar) {
       const b = document.createElement("div"); b.className = "ab-find";
-      b.innerHTML = `<div><input class="ab-find-q" placeholder="Find" aria-label="Find"><span class="ab-find-count"></span><button data-a="prev" title="Previous (Shift+Enter)">&#8593;</button><button data-a="next" title="Next (Enter)">&#8595;</button><button data-a="close" title="Close (Esc)">&#10005;</button></div><div><input class="ab-find-r" placeholder="Replace" aria-label="Replace"><button data-a="one">Replace</button><button data-a="all">All</button></div>`;
+      b.innerHTML = `<div class="ab-find-mode"><button data-a="mode-text" title="Find in the text">Text</button><button data-a="mode-wild" title="Search wildcard files and cards">Wildcards</button></div><div><input class="ab-find-q" placeholder="Find" aria-label="Find"><span class="ab-find-count"></span><button data-a="prev" title="Previous (Shift+Enter)">&#8593;</button><button data-a="next" title="Next (Enter)">&#8595;</button><button data-a="close" title="Close (Esc)">&#10005;</button></div><div class="ab-find-rep"><input class="ab-find-r" placeholder="Replace" aria-label="Replace"><button data-a="one">Replace</button><button data-a="all">All</button></div><div class="ab-find-list" role="listbox" hidden></div>`;
       t.parentElement.appendChild(b);
       t.__abBar = b;
       const q = b.querySelector(".ab-find-q"), r = b.querySelector(".ab-find-r");
-      q.addEventListener("input", () => { t.__abFind.query = q.value; t.__abFind.current = 0; t.__abFind.reveal = true; schedule(t); });
+      q.addEventListener("input", () => {
+        if (findMode === "wild") { queueSearch(t); return; }
+        t.__abFind.query = q.value; t.__abFind.current = 0; t.__abFind.reveal = true; schedule(t);
+      });
       b.addEventListener("keydown", (e) => {
         if (e.key === "Escape") { e.preventDefault(); closeFind(t); }
+        else if (findMode === "wild" && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); moveSel(t, e.key === "ArrowDown" ? 1 : -1); }
+        else if (findMode === "wild" && e.key === "Enter") { e.preventDefault(); pick(t, t.__abHits?.[t.__abSel]); }
         else if (e.key === "Enter") { e.preventDefault(); if (e.target === r) replaceOne(t, r.value); else stepFind(t, e.shiftKey ? -1 : 1); }
       });
-      b.addEventListener("mousedown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+      b.addEventListener("mousedown", (e) => { if (e.target.closest("button, .ab-find-row")) e.preventDefault(); });
       // Nodes 2.0 selects/drags the node on pointer events and can swallow the focus change.
       for (const ev of ["pointerdown", "mousedown", "click"]) b.addEventListener(ev, (e) => e.stopPropagation());
       b.addEventListener("click", (e) => {
+        const row = e.target.closest(".ab-find-row");
+        if (row) { pick(t, t.__abHits[+row.dataset.i]); return; }
         const a = e.target.closest("button")?.dataset.a;
+        if (a === "mode-text" || a === "mode-wild") { setMode(t, a === "mode-wild" ? "wild" : "text"); return; }
         if (a === "prev") stepFind(t, -1); else if (a === "next") stepFind(t, 1);
         else if (a === "close") closeFind(t);
         else if (a === "one") replaceOne(t, r.value); else if (a === "all") replaceEvery(t, r.value);
@@ -162,12 +183,67 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     if (sel && !sel.includes("\n")) q.value = sel;
     t.__abFind = { query: q.value, current: 0, matches: [], reveal: true };
     t.__abBar.hidden = false;
-    schedule(t);
+    setMode(t, findMode);
     q.focus(); q.select();
+  }
+
+  // ---- Wildcards mode: pick a wildcard file or card by name or content ----
+  function setMode(t, mode) {
+    findMode = mode;
+    const b = t.__abBar, q = b.querySelector(".ab-find-q");
+    b.classList.toggle("ab-find-wild", mode === "wild");
+    for (const x of b.querySelectorAll(".ab-find-mode button")) x.setAttribute("aria-pressed", String(x.dataset.a === "mode-" + mode));
+    q.placeholder = q.ariaLabel = mode === "wild" ? "Search wildcards" : "Find";
+    b.querySelector(".ab-find-list").hidden = mode !== "wild";
+    // Text highlights belong to Text mode only.
+    t.__abFind.query = mode === "wild" ? "" : q.value; t.__abFind.current = 0; t.__abFind.reveal = true;
+    if (mode === "wild") runSearch(t); else schedule(t);
+    schedule(t);
+    q.focus();
+  }
+
+  function queueSearch(t) {
+    clearTimeout(t.__abTimer);
+    t.__abTimer = setTimeout(() => runSearch(t), 150);
+  }
+
+  async function runSearch(t) {
+    const q = t.__abBar.querySelector(".ab-find-q").value.trim(), n = (t.__abSeq = (t.__abSeq || 0) + 1);
+    let hits = [];
+    if (q.length >= 2) { try { hits = await search(q); } catch { hits = []; } }
+    if (n !== t.__abSeq || findMode !== "wild" || !t.__abFind) return; // stale answer
+    t.__abHits = hits; t.__abSel = 0;
+    const list = t.__abBar.querySelector(".ab-find-list");
+    list.innerHTML = hits.length
+      ? hits.map((h, i) => `<div class="ab-find-row" role="option" data-i="${i}"><span class="ab-find-tok${h.kind === "card" ? " ab-find-card" : ""}">${esc(h.token)}</span><span class="ab-find-prev">${esc(h.preview)}</span><span class="ab-find-more">+${h.more}</span></div>`).join("")
+      : `<div class="ab-find-empty">${q.length < 2 ? "Type at least 2 characters" : "No wildcards found"}</div>`;
+    markSel(t);
+  }
+
+  function markSel(t) {
+    t.__abBar.querySelectorAll(".ab-find-row").forEach((r, i) => {
+      r.setAttribute("aria-selected", String(i === t.__abSel));
+      if (i === t.__abSel) r.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function moveSel(t, dir) {
+    const n = t.__abHits?.length;
+    if (!n) return;
+    t.__abSel = (t.__abSel + dir + n) % n;
+    markSel(t);
+  }
+
+  function pick(t, hit) {
+    if (!hit) return;
+    // The textarea keeps its selection while focus is in the bar.
+    insert(t, t.selectionStart, t.selectionEnd, `__${hit.token}__`);
+    closeFind(t);
   }
 
   function closeFind(t) {
     if (!t.__abFind) return;
+    clearTimeout(t.__abTimer); t.__abSeq = (t.__abSeq || 0) + 1;
     t.__abFind = undefined;
     t.__abBar.hidden = true;
     t.focus();
