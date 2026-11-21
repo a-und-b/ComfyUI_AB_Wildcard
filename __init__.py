@@ -1,22 +1,25 @@
+import logging
+
 from .nodes import ABWildcardNode
-from .tools import ABPromptMix, ABTextLines, ABWildcardLoad, ABWildcardSave
 
 # Node mappings
 NODE_CLASS_MAPPINGS = {
     "ABWildcardNode": ABWildcardNode,
-    "ABWildcardSave": ABWildcardSave,
-    "ABWildcardLoad": ABWildcardLoad,
-    "ABTextLines": ABTextLines,
-    "ABPromptMix": ABPromptMix,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ABWildcardNode": "AB Wildcard",
-    "ABWildcardSave": "AB Wildcard Save",
-    "ABWildcardLoad": "AB Wildcard Load",
-    "ABTextLines": "AB Text Lines",
-    "ABPromptMix": "AB Prompt Mix",
 }
+
+# The AB Utils nodes use ComfyUI's V3 node API (display names live in their schema).
+# On a ComfyUI without it, AB Wildcard itself must keep working.
+try:
+    from .tools import ABPromptMix, ABTextLines, ABWildcardLoad, ABWildcardSave
+except ImportError as e:
+    logging.warning(f"[AB Wildcard] Save/Load/Text Lines/Prompt Mix need a newer ComfyUI and are disabled: {e}")
+else:
+    for cls in (ABWildcardSave, ABWildcardLoad, ABTextLines, ABPromptMix):
+        NODE_CLASS_MAPPINGS[cls.__name__] = cls
 
 # Expose the web directory (frontend autocomplete)
 WEB_DIRECTORY = "./js"
