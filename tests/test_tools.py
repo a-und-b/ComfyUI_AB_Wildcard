@@ -78,3 +78,85 @@ def test_load_bundled_file_from_combo(root):
 def test_load_unknown_file(root):
     with pytest.raises(ValueError, match="nope"):
         tools.ABWildcardLoad().load(file="nope")
+
+
+# --- AB Text Lines ------------------------------------------------------------
+
+def tl(text, **kw):
+    return tools.text_lines(text, **kw)[1]
+
+
+def test_lines_defaults_trim_drop_empty_dedupe():
+    assert tl(" b \n\na\nb\n") == ["b", "a"]
+    assert tl("b\nb", dedupe=False) == ["b", "b"]
+
+
+def test_lines_split_and_join():
+    joined, items = tools.text_lines("a, b,c", split_by=",", join_with=" | ")
+    assert (joined, items) == ("a | b | c", ["a", "b", "c"])
+    assert tl("a\tb", split_by="\\t") == ["a", "b"]
+    assert tl("a\nb", split_by="") == ["a\nb"]
+
+
+def test_lines_find_replace_plain_vs_regex():
+    assert tl("Red car\nred.dot", find="RED", replace="blue") == ["blue car", "blue.dot"]
+    assert tl("a.b", find=".", replace="\\1") == ["a\\1b"]  # plain: literal both ways
+    assert tl("cat 12\ndog 3", find=r"(\w+) (\d+)", replace=r"\2 \1", regex=True) == ["12 cat", "3 dog"]
+    assert tl("drop me\nkeep", find="drop me") == ["keep"]  # emptied items vanish
+
+
+def test_lines_keep_and_drop():
+    src = "red apple\ngreen apple\nRed car"
+    assert tl(src, keep="red") == ["red apple", "Red car"]
+    assert tl(src, drop="apple") == ["Red car"]
+    assert tl(src, keep="^red", regex=True) == ["red apple"]
+
+
+def test_lines_order():
+    src = "b\nC\na"
+    assert tl(src, order="sort") == ["a", "b", "C"]
+    assert tl(src, order="sort desc") == ["C", "b", "a"]
+    assert tl(src, order="reverse") == ["a", "C", "b"]
+    many = "\n".join(str(i) for i in range(20))
+    assert tl(many, order="shuffle", seed=3) == tl(many, order="shuffle", seed=3)
+    assert tl(many, order="shuffle", seed=3) != tl(many, order="shuffle", seed=4)
+    assert sorted(tl(many, order="shuffle", seed=3), key=int) == tl(many)
+
+
+def test_lines_bad_regex_names_field():
+    with pytest.raises(ValueError, match="'keep'"):
+        tl("a", keep="(", regex=True)
+
+
+def test_lines_node_outputs():
+    assert tools.ABTextLines().run("a\nb\na") == ("a\nb", ["a", "b"], 2)
+
+
+# --- AB Prompt Mix --------------------------------------------------------------
+
+def mix(mode="each by chance", seed=0, separator=", ", **slots):
+    return tools.ABPromptMix().mix(mode, seed, separator, **slots)[0]
+
+
+def test_mix_chance_extremes():
+    for seed in range(50):
+        assert mix(seed=seed, text_1="a", weight_1=1.0, text_2="b", weight_2=0.0, text_4="d") == "a, d"
+
+
+def test_mix_chance_roughly_matches_weight_and_ignores_unwired_slots():
+    hits = sum(mix(seed=s, text_1="a", weight_1=0.3) == "a" for s in range(2000))
+    assert 500 < hits < 700
+    for s in range(50):  # wiring another slot does not change slot 1's outcome
+        assert ("a" in mix(seed=s, text_1="a", weight_1=0.5)) == ("a" in mix(seed=s, text_1="a", weight_1=0.5, text_3="c"))
+
+
+def test_mix_pick_one_weighted():
+    picks = {mix("pick one weighted", seed=s, text_1="a", text_2="", weight_2=1.0, text_3="c", weight_3=0.0, text_4="d")
+             for s in range(100)}
+    assert picks == {"a", "d"}  # never the empty slot 2 or the zero-weight slot 3
+    assert mix("pick one weighted", seed=7, text_1="a", text_2="b") == mix("pick one weighted", seed=7, text_1="a", text_2="b")
+    assert mix("pick one weighted") == ""
+
+
+def test_mix_separator_escape():
+    assert mix(separator="\\n", text_1="a", text_2="b") == "a\nb"

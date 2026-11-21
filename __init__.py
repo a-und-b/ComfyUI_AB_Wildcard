@@ -1,17 +1,21 @@
 from .nodes import ABWildcardNode
-from .tools import ABWildcardLoad, ABWildcardSave
+from .tools import ABPromptMix, ABTextLines, ABWildcardLoad, ABWildcardSave
 
 # Node mappings
 NODE_CLASS_MAPPINGS = {
     "ABWildcardNode": ABWildcardNode,
     "ABWildcardSave": ABWildcardSave,
     "ABWildcardLoad": ABWildcardLoad,
+    "ABTextLines": ABTextLines,
+    "ABPromptMix": ABPromptMix,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ABWildcardNode": "AB Wildcard",
     "ABWildcardSave": "AB Wildcard Save",
     "ABWildcardLoad": "AB Wildcard Load",
+    "ABTextLines": "AB Text Lines",
+    "ABPromptMix": "AB Prompt Mix",
 }
 
 # Expose the web directory (frontend autocomplete)
