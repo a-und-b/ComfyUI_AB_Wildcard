@@ -1,6 +1,6 @@
 # Plan: autocomplete for `$variables` and `<name>`
 
-Status: steps 1 (pure functions + tests), 2 (wiring) and 3 (docs) done; version 1.4.0 set, not released. Checks 1+2 pass; check 3 run in both renderers with synthetic key events. Written against 1.3.1.
+Status: steps 1 (pure functions + tests), 2 (wiring) and 3 (docs) done; version 1.4.0 set, not released. Checks 1+2 pass; check 3 run in both renderers with real key presses and mouse clicks (QA before release, NODE_MAINTENANCE.md §3 checklist incl. refresh button and both pickers). Also in 1.4.0: the text field keeps its background on hover/focus (315067a). Written against 1.3.1.
 Format note: this repo has no `.ab/`; the plan lives here like
 `plan-syntax-highlighting.md`, so any session can pick it up.
 
