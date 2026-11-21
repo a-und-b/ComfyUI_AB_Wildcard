@@ -335,3 +335,42 @@ def test_seeded_wildcard_keeps_its_underscores_and_repeats_the_pick():
 def test_hash_after_underscores_or_angle_is_not_a_comment():
     assert "#" not in run("__#7$$examples/colors__")
     assert "#" not in run("<#7$$examples/colors>")
+
+
+# --- wildcard search: tokens whose name or content matches ---
+
+def _search(q, limit=50):
+    loader = nodes.TagLoader(nodes.get_all_wildcard_paths(), {'ignore_paths': True, 'verbose': False})
+    return nodes.search_wildcards(loader, q, limit)
+
+
+def test_search_finds_file_and_card_for_emerald():
+    got = {r["token"]: r for r in _search("emerald")}
+    assert got["examples/colors"]["kind"] == "file"
+    assert got["examples/colors"]["preview"] == "emerald"
+    assert got["Shades Of Green"]["kind"] == "card"
+    assert got["Shades Of Green"]["preview"] == "emerald"
+    assert got["Shades Of Green"]["more"] == 0
+
+
+def test_search_lists_a_card_once_name_matches_first():
+    res = _search("knight")
+    tokens = [r["token"] for r in res]
+    assert tokens.count("Iron Knight") == 1
+    # name matches come before pure content matches
+    name_hits = [t for t in tokens if "knight" in t.lower()]
+    assert tokens[:len(name_hits)] == name_hits
+    # title is the first matching field; prompts and tags are further hits
+    assert res[tokens.index("Iron Knight")]["more"] >= 1
+
+
+def test_search_ignores_short_and_unmatched_queries():
+    assert _search("e") == []
+    assert _search("") == []
+    assert _search("zzzz-no-such-thing") == []
+
+
+def test_search_respects_limit_and_case():
+    assert len(_search("a", 50)) == 0  # one char
+    assert len(_search("ar", 3)) <= 3
+    assert _search("EMERALD") == _search("emerald")

@@ -1372,6 +1372,49 @@ def _global_names(loader):
     """Names (not values) of the variables globals.yaml defines, for the frontend."""
     return sorted(loader.load_globals())
 
+def _search_lines(loader, token):
+    """Searchable text lines of one insertable token (card fields or file lines)."""
+    card = loader.yaml_entries.get(token.lower())
+    if card:
+        desc = card.get('description')
+        return [str(x) for x in card['prompts']] + ([str(desc)] if desc else []) + list(card['tags'])
+    lines = []
+    for item in loader.load_tags(token):
+        # csv rows come back as dicts: every cell is searchable
+        lines.append(", ".join(str(v) for v in item.values() if v) if isinstance(item, dict) else str(item))
+    return lines
+
+def search_wildcards(loader, query, limit=50):
+    """One result per token whose name or content contains `query` (case-insensitive).
+
+    Name matches first, then content matches, each alphabetical. `more` counts
+    the matching lines after the one shown as `preview`.
+    """
+    q = (query or "").strip().lower()
+    if len(q) < 2:
+        return []
+    loader.build_index()
+    by_name, by_content = [], []
+    for token in sorted(loader.files_index, key=str.lower):
+        lines = _search_lines(loader, token)
+        hits = [ln for ln in lines if q in ln.lower()]
+        name = q in token.lower()
+        if not (name or hits):
+            continue
+        shown = hits[0] if hits else (lines[0] if lines else "")
+        (by_name if name else by_content).append({
+            "token": token,
+            "kind": "card" if token.lower() in loader.yaml_entries else "file",
+            "preview": shown,
+            "more": max(len(hits) - 1, 0),
+        })
+    return (by_name + by_content)[:limit]
+
+@server.PromptServer.instance.routes.get("/ab_wildcard/search")
+async def search_route(request):
+    loader = TagLoader(get_all_wildcard_paths(), {'ignore_paths': True, 'verbose': False})
+    return web.json_response({"results": search_wildcards(loader, request.query.get("q", ""))})
+
 @server.PromptServer.instance.routes.get("/ab_wildcard/wildcards")
 async def get_wildcards(request):
     all_paths = get_all_wildcard_paths()

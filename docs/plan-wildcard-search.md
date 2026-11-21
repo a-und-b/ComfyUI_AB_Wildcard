@@ -1,6 +1,6 @@
 # Plan: search wildcard and card contents from the node
 
-Status: planned, nothing built. Written against 1.5.0 (find and replace in
+Status: step 1 built (endpoint + tests), steps 2 and 3 open. Written against 1.5.0 (find and replace in
 the field, `plan-text-search.md`).
 Format note: this repo has no `.ab/`; the plan lives here like the other
 `docs/plan-*.md`, so any session can pick it up.
