@@ -1,6 +1,6 @@
 # Plan: find and replace in the text field
 
-Status: step 1 done; steps 2-4 open. Written against 1.4.0 (branch
+Status: steps 1-2 done; 3-4 open. Written against 1.4.0 (branch
 `feat/autocomplete-variables`, not yet released).
 Format note: this repo has no `.ab/`; the plan lives here like the other
 `docs/plan-*.md`, so any session can pick it up.

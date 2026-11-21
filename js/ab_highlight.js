@@ -20,13 +20,15 @@ const CSS = `
   --ab-hl-wild: #5cc8ff; --ab-hl-seq: #3fe0c5; --ab-hl-tag: #c297ff; --ab-hl-brace: #ffcb6b; --ab-hl-mode: #ff7ad9;
   --ab-hl-num: #ffa657; --ab-hl-kw: #ff8fa3;
   --ab-hl-error: #ff5c5c; --ab-hl-warning: #f0b429; --ab-hl-info: #5cc8ff;
-  --ab-hl-status-bg: rgba(20,22,28,.92); --ab-hl-status-line: rgba(255,255,255,.18); }
+  --ab-hl-status-bg: rgba(20,22,28,.92); --ab-hl-status-line: rgba(255,255,255,.18);
+  --ab-hl-match: rgba(255,203,107,.30); --ab-hl-match-cur: rgba(255,150,40,.65); --ab-hl-match-line: #ffcb6b; }
 :root.ab-hl-light { --ab-hl-text: var(--input-text, #24292f);
   --ab-hl-comment: #6e7781; --ab-hl-var: #116329; --ab-hl-var-bg: rgba(46,160,100,.18); --ab-hl-assign: #57606a;
   --ab-hl-wild: #0550ae; --ab-hl-seq: #0a7f6d; --ab-hl-tag: #6639ba; --ab-hl-brace: #8a5a00; --ab-hl-mode: #b0198a;
   --ab-hl-num: #a04100; --ab-hl-kw: #b3263e;
   --ab-hl-error: #cf222e; --ab-hl-warning: #9a6700; --ab-hl-info: #0550ae;
-  --ab-hl-status-bg: rgba(255,255,255,.95); --ab-hl-status-line: rgba(0,0,0,.2); }
+  --ab-hl-status-bg: rgba(255,255,255,.95); --ab-hl-status-line: rgba(0,0,0,.2);
+  --ab-hl-match: rgba(255,200,0,.35); --ab-hl-match-cur: rgba(255,140,0,.55); --ab-hl-match-line: #b36b00; }
 .ab-t-comment { color: var(--ab-hl-comment); }
 .ab-t-varDef, .ab-t-variable { color: var(--ab-hl-var); background: var(--ab-hl-var-bg); border-radius: 3px; box-shadow: 0 0 0 1px var(--ab-hl-var-bg); }
 .ab-t-assign { color: var(--ab-hl-assign); }
@@ -36,6 +38,8 @@ const CSS = `
 .ab-t-seqMode { color: var(--ab-hl-mode); }
 .ab-t-count, .ab-t-prob, .ab-t-weight { color: var(--ab-hl-num); }
 .ab-t-ifKw, .ab-t-ifSep, .ab-t-fn { color: var(--ab-hl-kw); }
+.ab-m { background: var(--ab-hl-match); border-radius: 2px; }
+.ab-m-cur { background: var(--ab-hl-match-cur); box-shadow: 0 0 0 1px var(--ab-hl-match-line); }
 .ab-d-error { text-decoration: underline wavy var(--ab-hl-error); text-underline-offset: 2px; }
 .ab-d-warning { text-decoration: underline wavy var(--ab-hl-warning); text-underline-offset: 2px; }
 .ab-d-info { text-decoration: underline dotted var(--ab-hl-info); text-underline-offset: 2px; }
@@ -53,11 +57,13 @@ function isLight() {
   return !!m && (+m[1] + +m[2] + +m[3]) / 3 > 140;
 }
 
-// Cut `text` at every token/diagnostic boundary and wrap each piece.
-export function render(text, { tokens, diagnostics }) {
+// Cut `text` at every token/diagnostic/match boundary and wrap each piece.
+// matches: optional find ranges { start, end }; current: index of the strong one.
+export function render(text, { tokens, diagnostics, matches = [], current = -1 }) {
   const cuts = new Set([0, text.length]);
   for (const r of tokens) { cuts.add(r.start); cuts.add(r.end); }
   for (const d of diagnostics) { cuts.add(Math.max(0, d.start)); cuts.add(Math.min(text.length, d.end)); }
+  for (const m of matches) { cuts.add(m.start); cuts.add(m.end); }
   const points = [...cuts].sort((a, b) => a - b);
   let html = "", ti = 0;
   for (let p = 0; p < points.length - 1; p++) {
@@ -67,7 +73,8 @@ export function render(text, { tokens, diagnostics }) {
     const tok = tokens[ti] && tokens[ti].start <= a ? tokens[ti] : null;
     let sev = null;
     for (const d of diagnostics) if (d.start <= a && d.end >= b && (!sev || RANK[d.severity] > RANK[sev])) sev = d.severity;
-    const cls = [tok && `ab-t-${tok.type}`, sev && `ab-d-${sev}`].filter(Boolean).join(" ");
+    const mi = matches.findIndex((m) => m.start <= a && m.end >= b);
+    const cls = [tok && `ab-t-${tok.type}`, sev && `ab-d-${sev}`, mi >= 0 && (mi === current ? "ab-m ab-m-cur" : "ab-m")].filter(Boolean).join(" ");
     const piece = esc(text.slice(a, b));
     html += cls ? `<span class="${cls}">${piece}</span>` : piece;
   }
@@ -94,7 +101,7 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     m.style.borderWidth = `${cs.borderTopWidth} ${cs.borderRightWidth} ${cs.borderBottomWidth} ${cs.borderLeftWidth}`;
     const result = tokenize(t.value, getKnown());
     t.__abResult = result;
-    m.innerHTML = render(t.value, result);
+    m.innerHTML = render(t.value, { ...result, ...t.__abFind });
     m.scrollTop = t.scrollTop;
     m.scrollLeft = t.scrollLeft;
     status(t);
