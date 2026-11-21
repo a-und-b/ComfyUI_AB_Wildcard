@@ -1,7 +1,7 @@
 # Plan: wildcard file I/O and text operator nodes (AB Wildcard 1.7.0)
 
-Status: UX rework built on branch `feat/wildcard-io` (version 1.7.0), not merged
-or released. Checked: pytest (67) and syntax tests green; live in the test ComfyUI
+Status: released as 1.7.0 on 2026-11-21 (PR a-und-b/ComfyUI_AB_Wildcard#8 merged,
+Comfy registry publish run succeeded). Checked: pytest (67) and syntax tests green; live in the test ComfyUI
 (0.45.2, frontend 1.58, Nodes 2.0): every operation runs with the expected output,
 a full graph survives save → reload with every widget value intact, both example
 workflows run. Not checked: the Legacy (non-Vue) renderer; Holger's hand test.
