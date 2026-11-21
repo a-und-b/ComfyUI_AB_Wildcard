@@ -123,6 +123,8 @@ Click into the text field and press **Cmd/Ctrl+F**. A small bar opens on the fie
 
 Switch the bar from **Text** to **Wildcards** to search your wildcard files and cards instead of the text field:
 
+![Find bar in Wildcards mode: searching emerald lists the file examples/colors and the card Shades Of Green](example_workflows/ab-wildcard-search-preview.png)
+
 - Type at least two characters, e.g. `emerald`. One row per insertable token appears: the name (cards in colour), the first matching line as a preview, and `+n` for further matching lines.
 - Files match on their name and every line (csv: every cell); cards on title, prompts, description and tags. Case-insensitive, plain text; name matches are listed first, at most 50 rows.
 - **Arrow Up/Down** and **Enter**, or a click, insert `__token__` at the caret and close the bar. One **Cmd/Ctrl+Z** removes it again.
