@@ -321,3 +321,42 @@ function checkNames(text, tokens, known, warn) {
 function unclosedMsg(frame) {
   return frame.kind === "brace" ? "Unclosed {" : frame.kind === "if" ? "Unclosed [if" : "Unclosed [clean: / [shuffle:";
 }
+
+// ---- Autocomplete ----------------------------------------------------------
+
+export const MODIFIERS = ["clean", "upper", "lower", "title"];
+
+// What is the user typing at the end of `before` (the text up to the cursor)?
+// -> { kind: "modifier" | "variable" | "tag" | "wildcard", query, start, opener } or null.
+// opener is "." for modifiers, "$" for variables, "<[" for tags, "__" or "<" for wildcards.
+// `{2$$` and "$5" are not variables; "a < b" is not a wildcard.
+export function completionContext(before) {
+  let m = /\$[A-Za-z0-9_]+(?:\.[A-Za-z_]+)*(\.)([A-Za-z_]*)$/.exec(before);
+  if (m) return { kind: "modifier", query: m[2], start: m.index + m[0].length - m[2].length - 1, opener: "." };
+  m = /(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)?$/.exec(before);
+  if (m) return { kind: "variable", query: m[1] || "", start: m.index, opener: "$" };
+  m = /(__|<\[)([\w\/\-\s]*)$/.exec(before);
+  if (m) return { kind: m[1] === "<[" ? "tag" : "wildcard", query: m[2], start: m.index, opener: m[1] };
+  m = /<(\w[\w\/\-]*)$/.exec(before);
+  if (m) return { kind: "wildcard", query: m[1], start: m.index, opener: "<" };
+  return null;
+}
+
+// The text that replaces [start, cursor) when `name` is accepted.
+export function completionText(ctx, name) {
+  if (ctx.kind === "tag") return `<[${name}]>`;
+  if (ctx.kind === "wildcard") return ctx.opener === "<" ? `<${name}>` : `__${name}__`;
+  return ctx.opener + name; // "$name" or ".modifier"
+}
+
+// Variable names for the popup: globals plus every `$name =` in the field,
+// whole text (the engine collects all assignments before it substitutes), once
+// per name, case-insensitive.
+export function variableNames(text, globals = []) {
+  const seen = new Set();
+  const out = [];
+  const add = (n) => { if (!seen.has(lower(n))) { seen.add(lower(n)); out.push(n); } };
+  for (const g of globals || []) add(g);
+  for (const t of tokenize(text).tokens) if (t.type === "varDef") add(text.slice(t.start + 1, t.end));
+  return out;
+}

@@ -1,7 +1,7 @@
 // Run: node tests/syntax.test.mjs   (plain assert, no framework)
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { tokenize } from "../js/ab_syntax.js";
+import { tokenize, completionContext, completionText, variableNames } from "../js/ab_syntax.js";
 
 const toks = (t) => tokenize(t).tokens.map((k) => `${k.type}:${t.slice(k.start, k.end)}`);
 const errs = (t) => tokenize(t).diagnostics.filter((d) => d.severity === "error").map((d) => `${d.message}@${d.start}`);
@@ -68,6 +68,32 @@ function checkShape(t) {
     prev = k.end;
   }
 }
+
+// --- autocomplete ---
+const ctx = (t) => { const c = completionContext(t); return c && `${c.kind}:${c.query}`; };
+assert.equal(ctx("$co"), "variable:co");
+assert.equal(ctx("a $"), "variable:");
+assert.equal(ctx("x {2$$"), null);
+assert.equal(ctx("$5"), null);
+assert.equal(ctx("<co"), "wildcard:co");
+assert.equal(ctx("a < b"), null);
+assert.equal(ctx("<lora:x"), null);
+assert.equal(ctx("<[co"), "tag:co");
+assert.equal(ctx("__co"), "wildcard:co");
+assert.equal(ctx("$color.cl"), "modifier:cl");
+assert.equal(ctx("$color.upper.ti"), "modifier:ti");
+assert.equal(ctx("plain text"), null);
+{
+  const t = "a $color.cl";
+  const c = completionContext(t);
+  assert.equal(t.slice(0, c.start) + completionText(c, "clean"), "a $color.clean");
+  assert.equal(completionText(completionContext("x <co"), "colors"), "<colors>");
+  assert.equal(completionText(completionContext("x __co"), "colors"), "__colors__");
+  assert.equal(completionText(completionContext("x <[co"), "red"), "<[red]>");
+  assert.equal(completionText(completionContext("x $c"), "color"), "$color");
+}
+assert.deepEqual(variableNames("a $late\n$late = {x}\n$Late = y", ["quality"]), ["quality", "late"]);
+assert.deepEqual(variableNames("# $x = 1\n$y = 2"), ["y"]);
 
 // --- every shipped example text: no diagnostics ---
 const wfDir = new URL("../example_workflows/", import.meta.url);
