@@ -6,9 +6,9 @@ Checked: pytest (75, 9 new) and syntax tests green; live on dd-machine (ComfyUI
 the API and from the frontend with `qwen_3_4b` and `qwen3.5_9b_int8_convrot`,
 incl. scope input, no-slot pass-through and default operation short; the slot
 chain graph and the blueprint survive save → reload with every widget value
-intact and run again. Not checked: the Legacy (non-Vue) renderer; Holger's hand
-test; the blueprint listed from the pack's `subgraphs/` folder (needs a restart
-of the busy dd-machine instance).
+intact and run again; the blueprint ships from the pack's `subgraphs/` folder,
+shows in node search under Subgraph Blueprints, inserts with its widget values
+and runs. Not checked: the Legacy (non-Vue) renderer; Holger's hand test.
 
 Found while building:
 - `TextGenerateV2` takes the system prompt only via its `system_prompt` socket,
