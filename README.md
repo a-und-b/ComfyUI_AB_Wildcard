@@ -63,6 +63,8 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 ![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
 
+**Full demo** — [`ab-wildcard-demo.json`](example_workflows/ab-wildcard-demo.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
+
 1. Load a workflow file.
 2. Edit the prompt text.
 3. Queue it and read the expanded text in **Preview as Text**.
