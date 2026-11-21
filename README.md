@@ -73,6 +73,8 @@ This node is **pure text processing** — it takes text input and outputs proces
 
 Two ways to insert tokens without memorizing names:
 
+![Autocomplete popup suggesting the variables creature and color after typing $c](example_workflows/ab-wildcard-autocomplete-preview.png)
+
 - **Autocomplete** — type `__` (or `<` directly followed by a letter, e.g. `<co`) for
   wildcards/card titles, `<[` for tags, `$` for variables (`globals.yaml` names plus every
   `$name = …` in the field, wherever it is defined) and `$name.c` (first letter after the dot) for the modifiers
@@ -109,6 +111,8 @@ Good to know:
 ## Find and Replace
 
 Click into the text field and press **Cmd/Ctrl+F**. A small bar opens on the field:
+
+![Find bar searching for color: four matches marked, the second one highlighted](example_workflows/ab-wildcard-find-preview.png)
 
 - Type to mark every match (case-insensitive, plain text — no regex); the current one is stronger, with a count like `2 / 5`.
 - **Enter** / **Shift+Enter** jump to the next / previous match and scroll it into view.
