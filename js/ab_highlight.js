@@ -41,7 +41,7 @@ const CSS = `
 .ab-d-info { text-decoration: underline dotted var(--ab-hl-info); text-underline-offset: 2px; }
 `;
 
-const COPIED = ["font", "lineHeight", "letterSpacing", "whiteSpace", "overflowWrap", "wordBreak", "tabSize", "textAlign"];
+const COPIED = ["font", "lineHeight", "letterSpacing", "whiteSpace", "overflowWrap", "wordBreak", "tabSize", "textAlign", "borderRadius"];
 const RANK = { error: 3, warning: 2, info: 1 };
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -139,6 +139,11 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     const s = document.createElement("div"); s.className = "ab-hl-status"; s.hidden = true;
     t.parentElement.insertBefore(m, t);
     t.parentElement.appendChild(s);
+    // The textarea goes transparent, so the mirror carries its background. Opaque,
+    // it also hides the wrapper's hover/focus tint (Nodes 2.0: hover:bg-muted).
+    // ponytail: read once; a theme switch keeps the old colour until reload.
+    t.__abBg ??= getComputedStyle(t).backgroundColor;
+    m.style.background = t.__abBg;
     t.classList.add("ab-hl-ta");
     t.__abMirror = m; t.__abStatus = s;
     if (!attached.has(t)) {
