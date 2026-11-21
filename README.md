@@ -16,7 +16,7 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Tag Aggregation** — `<[Tag]>` to pick from YAML cards by tag
 * **Card by Title** — `__Card Name__` to pull a specific YAML card's prompt
 * **Global Presets** — Auto-load variables from `globals.yaml`
-* **In-node Helpers** — Autocomplete (type `__` / `<[`) + Wildcards/Tags dropdowns
+* **In-node Helpers** — Autocomplete (type `__`, `<name`, `<[`, `$`) + Wildcards/Tags dropdowns
 * **Syntax Highlighting** — Colours, variable chips and underlined mistakes while you type
 
 ---
@@ -73,7 +73,10 @@ This node is **pure text processing** — it takes text input and outputs proces
 
 Two ways to insert tokens without memorizing names:
 
-- **Autocomplete** — type `__` for wildcards/card titles, or `<[` for tags.
+- **Autocomplete** — type `__` (or `<` directly followed by a letter, e.g. `<co`) for
+  wildcards/card titles, `<[` for tags, `$` for variables (`globals.yaml` names plus every
+  `$name = …` in the field, wherever it is defined) and `$name.` for the modifiers
+  `clean`, `upper`, `lower`, `title`.
   Navigate with arrow keys, accept with **Tab/Enter or mouse click**.
 - **Dropdowns** — the node's **Wildcards** and **Tags** combos insert the
   matching token (`__name__` / `<[tag]>`) on selection.
@@ -299,7 +302,7 @@ __examples/lighting__,
 
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
-3. **Autocomplete** — Type `__` (wildcards/cards) or `<[` (tags); accept with Tab/Enter or click
+3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.` (modifiers); accept with Tab/Enter or click
 4. **Debug** — Check the console for processing errors
 
 ---
