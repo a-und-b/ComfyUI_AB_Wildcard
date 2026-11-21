@@ -106,6 +106,17 @@ Good to know:
 
 ---
 
+## Find and Replace
+
+Click into the text field and press **Cmd/Ctrl+F**. A small bar opens on the field:
+
+- Type to mark every match (case-insensitive, plain text — no regex); the current one is stronger, with a count like `2 / 5`.
+- **Enter** / **Shift+Enter** jump to the next / previous match and scroll it into view.
+- **Replace** swaps the current match, **All** swaps every match. One **Cmd/Ctrl+Z** in the field undoes the last replace.
+- **Esc** closes the bar and puts the caret back in the field. Cmd/Ctrl+F outside the field is unchanged.
+
+---
+
 ## Syntax Reference
 
 ### Wildcards
@@ -303,7 +314,8 @@ __examples/lighting__,
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
 2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
 3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
-4. **Debug** — Check the console for processing errors
+4. **Find and replace** — Cmd/Ctrl+F in the text field
+5. **Debug** — Check the console for processing errors
 
 ---
 

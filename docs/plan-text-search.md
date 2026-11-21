@@ -1,6 +1,10 @@
 # Plan: find and replace in the text field
 
-Status: steps 1-3 done (Nodes 2.0 verified; Legacy pending); 4 open. Written against 1.4.0 (branch
+Status: all four steps built; check 1 passes; checks 2-3 passed in Nodes 2.0
+and Legacy with real clicks/keys, except: Cmd+Z/Cmd+A are not delivered as
+native edits by the built-in browser, so undo was checked with
+`document.execCommand("undo")` (one step restores text and widget value), and
+autocomplete with the bar open was checked in Nodes 2.0 only. Written against 1.4.0 (branch
 `feat/autocomplete-variables`, not yet released).
 Format note: this repo has no `.ab/`; the plan lives here like the other
 `docs/plan-*.md`, so any session can pick it up.
