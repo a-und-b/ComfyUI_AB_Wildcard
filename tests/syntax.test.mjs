@@ -1,7 +1,7 @@
 // Run: node tests/syntax.test.mjs   (plain assert, no framework)
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { tokenize, completionContext, completionText, variableNames } from "../js/ab_syntax.js";
+import { tokenize, completionContext, completionText, variableNames, findMatches, replaceAll } from "../js/ab_syntax.js";
 
 const toks = (t) => tokenize(t).tokens.map((k) => `${k.type}:${t.slice(k.start, k.end)}`);
 const errs = (t) => tokenize(t).diagnostics.filter((d) => d.severity === "error").map((d) => `${d.message}@${d.start}`);
@@ -95,6 +95,16 @@ assert.equal(ctx("plain text"), null);
 }
 assert.deepEqual(variableNames("a $late\n$late = {x}\n$Late = y", ["quality"]), ["quality", "late"]);
 assert.deepEqual(variableNames("# $x = 1\n$y = 2"), ["y"]);
+
+// --- find and replace ---
+assert.deepEqual(findMatches("Red red RED", "red"), [{ start: 0, end: 3 }, { start: 4, end: 7 }, { start: 8, end: 11 }]);
+assert.deepEqual(findMatches("abc", ""), []);
+assert.deepEqual(findMatches("a {x|y} $c", "{x|"), [{ start: 2, end: 5 }]);
+assert.deepEqual(findMatches("cost $5 or $$", "$$"), [{ start: 11, end: 13 }]);
+assert.deepEqual(findMatches("aaa", "aa"), [{ start: 0, end: 2 }]);
+assert.equal(replaceAll("$color $Color", "$color", "$tint"), "$tint $tint");
+assert.equal(replaceAll("a b", "a", "$&$$"), "$&$$ b");
+assert.equal(replaceAll("abc", "", "x"), "abc");
 
 // --- every shipped example text: no diagnostics ---
 const wfDir = new URL("../example_workflows/", import.meta.url);

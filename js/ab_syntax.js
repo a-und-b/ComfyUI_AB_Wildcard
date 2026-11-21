@@ -361,3 +361,19 @@ export function variableNames(text, globals = []) {
   for (const t of tokenize(text).tokens) if (t.type === "varDef") add(text.slice(t.start + 1, t.end));
   return out;
 }
+
+// ---- Find and replace ------------------------------------------------------
+
+// Case-insensitive, literal (no regex, no whole-word). -> [{ start, end }]
+const literalRe = (query) => new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+
+export function findMatches(text, query) {
+  if (!query) return [];
+  return [...text.matchAll(literalRe(query))].map((m) => ({ start: m.index, end: m.index + m[0].length }));
+}
+
+// Every match replaced; `with_` is literal too ("$&" and friends mean nothing).
+export function replaceAll(text, query, with_) {
+  if (!query) return text;
+  return text.replace(literalRe(query), () => with_);
+}
