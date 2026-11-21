@@ -201,7 +201,9 @@ class ABTextLines:
         s = lambda default, tip: ("STRING", {"default": default, "tooltip": tip})
         return {
             "required": {
-                "text": ("STRING", {"forceInput": True}),
+                # A widget, not forceInput: forceInput next to the seed widget shifts every
+                # saved widget value by one on load (frontend 1.58). Linking still works.
+                "text": ("STRING", {"multiline": True, "tooltip": "Text to split, e.g. one item per line"}),
                 "split_by": s("\\n", "Split into items here (\\n = newline, \\t = tab, empty = one item)"),
                 "find": s("", "Replace this in every item (empty = off)"),
                 "replace": s("", "Replacement for find; with regex, \\1 inserts a group"),
