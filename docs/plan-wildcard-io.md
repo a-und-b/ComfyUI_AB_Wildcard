@@ -1,6 +1,15 @@
 # Plan: wildcard file I/O and text operator nodes (AB Wildcard 1.7.0)
 
-Status: approved by Holger 2026-11-21, being built on branch `feat/wildcard-io`.
+Status: built on branch `feat/wildcard-io`, version 1.7.0, not merged or released.
+Checked: pytest (65) and syntax tests green; live in the test ComfyUI (frontend
+1.58, Nodes 2.0) — example workflow saves, reloads with correct widget values,
+runs: Load → "amber, coral, teal", `__my/colors__` resolved without Refresh.
+Not checked: the Legacy (non-Vue) renderer; Holger's hand test.
+
+Deviation found while building: AB Text Lines takes `text` as a multiline widget,
+not `forceInput`. A forceInput socket next to a `seed` widget made frontend 1.58
+restore every saved widget value one slot too early (reproduced with test node
+defs; Save, Load and Prompt Mix are not affected). The widget can still be linked.
 Format note: this repo has no `.ab/`; the plan lives here like the other `docs/plan-*.md`.
 
 ## Context
