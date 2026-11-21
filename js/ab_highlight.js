@@ -197,8 +197,8 @@ export function installHighlighter({ resolveTextarea, getKnown, search }) {
     b.querySelector(".ab-find-list").hidden = mode !== "wild";
     // Text highlights belong to Text mode only.
     t.__abFind.query = mode === "wild" ? "" : q.value; t.__abFind.current = 0; t.__abFind.reveal = true;
-    if (mode === "wild") runSearch(t); else schedule(t);
-    schedule(t);
+    if (mode === "wild") runSearch(t);
+    schedule(t); // repaint: drops or restores the Text-mode marks
     q.focus();
   }
 
