@@ -1,106 +1,22 @@
-"""Graph-side helpers: save/load wildcard files, line tools, prompt mixing.
+"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing (V3 node API).
 
+Thin wrappers: the logic lives in ops.py, where pytest can reach it.
 Plan: docs/plan-wildcard-io.md
 """
-import io
 import os
-import random
-import re
 
 import folder_paths
+from comfy_api.latest import io
 
-try:  # inside ComfyUI this is a package; top-level "nodes" is ComfyUI's own
-    from .nodes import GLOBAL_CACHE, GLOBAL_INDEX, TagLoader, get_all_wildcard_paths, read_file_lines
-except ImportError:  # tests import the pack's modules top-level
-    from nodes import GLOBAL_CACHE, GLOBAL_INDEX, TagLoader, get_all_wildcard_paths, read_file_lines
+from . import ops
+from .nodes import TagLoader, get_all_wildcard_paths
 
 CATEGORY = "AB Utils"
-COLOR = "#322947"
-
-
-def _lines(text):
-    """Non-empty, trimmed lines."""
-    return [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-
-
-def _key(name):
-    """'My\\Colors.txt ' -> 'My/Colors' (the key scheme TagLoader uses, before lower-casing)."""
-    name = (name or "").strip().replace("\\", "/")
-    return name[:-4] if name.lower().endswith(".txt") else name
+UINT64 = 0xffffffffffffffff
 
 
 def _wildcards_dir():
-    # Read at call time: tests point base_path elsewhere.
     return os.path.join(folder_paths.base_path, "wildcards")
-
-
-def _safe_path(name):
-    """Path of <ComfyUI>/wildcards/<name>.txt; refuses anything that leaves that folder."""
-    key = _key(name)
-    base = os.path.realpath(_wildcards_dir())
-    path = os.path.realpath(os.path.join(base, key + ".txt"))
-    bad = (
-        not key
-        or os.path.isabs(key)
-        or ".." in key.split("/")
-        or key[0] in "~@!"  # would read as a sequence token: __~name__
-        or os.path.commonpath([base, path]) != base
-    )
-    if bad:
-        raise ValueError(
-            f"AB Wildcard Save: invalid name {name!r}. Use a relative name like 'my/colors' "
-            "(no '..', not starting with ~ @ !)."
-        )
-    return key, path
-
-
-def _clear_caches():
-    """Same reset as POST /ab_wildcard/refresh, so __name__ sees the new file at once."""
-    GLOBAL_CACHE.clear()
-    GLOBAL_INDEX.update(built=False, files=set(), entries={})
-
-
-class ABWildcardSave:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": ("STRING", {"forceInput": True, "tooltip": "One wildcard entry per line"}),
-                "name": ("STRING", {"default": "my/list", "tooltip": "Saved as ComfyUI/wildcards/<name>.txt, used as __<name>__"}),
-                "mode": (["overwrite", "append", "append unique"], {
-                    "tooltip": "append unique skips lines already in the file and repeats in the input",
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("text", "name")
-    FUNCTION = "save"
-    OUTPUT_NODE = True
-    CATEGORY = CATEGORY
-    COLOR = COLOR
-    DESCRIPTION = "Writes lines to a wildcard file in ComfyUI/wildcards."
-
-    def save(self, text, name, mode):
-        key, path = _safe_path(name)
-        existing = ""
-        if mode != "overwrite" and os.path.exists(path):
-            with open(path, encoding="utf8") as f:
-                existing = f.read()
-        new = _lines(text)
-        if mode == "append unique":
-            seen = set(read_file_lines(io.StringIO(existing)))
-            new = [ln for ln in dict.fromkeys(new) if ln not in seen]
-        if existing and not existing.endswith("\n"):
-            existing += "\n"
-
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = path + ".tmp"  # write then rename: a crash never leaves half a file
-        with open(tmp, "w", encoding="utf8") as f:
-            f.write(existing + "".join(ln + "\n" for ln in new))
-        os.replace(tmp, path)
-        _clear_caches()
-        return (text, key)
 
 
 def _txt_files():
@@ -108,174 +24,193 @@ def _txt_files():
     return TagLoader(get_all_wildcard_paths(), {}).txt_lookup
 
 
-class ABWildcardLoad:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "file": (sorted(_txt_files()) or [""], {"tooltip": "Wildcard .txt file"}),
-            },
-            "optional": {
-                "name": ("STRING", {"forceInput": True, "tooltip": "Overrides file, e.g. from AB Wildcard Save"}),
-            },
-        }
+def _separator(id, label, first="new line", advanced=False):
+    """Separator dropdown; a text field appears only for 'custom'. `first` is the default."""
+    names = [first] + [s for s in ops.SEPARATORS if s != first]
+    return io.DynamicCombo.Input(id, display_name=label, options=[
+        io.DynamicCombo.Option(n, [io.String.Input("custom_text", display_name="custom text")] if n == "custom" else [])
+        for n in names
+    ], extra_dict={"advanced": True} if advanced else None)  # DynamicCombo.Input takes no `advanced` arg
 
-    RETURN_TYPES = ("STRING", "STRING", "INT")
-    RETURN_NAMES = ("text", "lines", "count")
-    OUTPUT_IS_LIST = (False, True, False)
-    FUNCTION = "load"
-    CATEGORY = CATEGORY
-    COLOR = COLOR
-    DESCRIPTION = "Reads a wildcard file: whole text, one list item per line, line count."
+
+def _sep(value):
+    """DynamicCombo value -> (choice, custom) for ops.split / ops.join."""
+    choice = next(v for k, v in value.items() if k != "custom_text")
+    return choice, value.get("custom_text", "")
+
+
+def _lines_out(items):
+    return io.NodeOutput("\n".join(items), items, len(items))
+
+
+LINES_OUTPUTS = [
+    io.String.Output(display_name="text", tooltip="All lines as one text"),
+    io.String.Output(display_name="lines", tooltip="One item per line: nodes after this run once per line",
+                     is_output_list=True),
+    io.Int.Output(display_name="count"),
+]
+
+
+class ABWildcardSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABWildcardSave",
+            display_name="AB Wildcard Save",
+            category=CATEGORY,
+            description="Saves lines as a wildcard file in ComfyUI/wildcards and outputs the whole file.",
+            search_aliases=["save wildcard", "write wildcard file", "save list", "save lines"],
+            is_output_node=True,
+            inputs=[
+                io.String.Input("text", multiline=True, tooltip="One wildcard entry per line. Type it or connect a text."),
+                io.String.Input("name", default="my/list",
+                                tooltip="Saved as ComfyUI/wildcards/<name>.txt and usable as __<name>__"),
+                io.Combo.Input("mode", options=ops.SAVE_MODES, tooltip=(
+                    "add new lines: only lines the file doesn't have yet · "
+                    "add all lines: append everything · replace file: start over")),
+            ],
+            outputs=LINES_OUTPUTS,
+        )
 
     @classmethod
-    def IS_CHANGED(cls, **_kwargs):
+    def execute(cls, text, name, mode):
+        _key, path = ops.safe_path(_wildcards_dir(), name)
+        items = ops.save_lines(path, text, mode)
+        ops.clear_wildcard_caches()
+        return _lines_out(items)
+
+
+class ABWildcardLoad(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABWildcardLoad",
+            display_name="AB Wildcard Load",
+            category=CATEGORY,
+            description="Reads a wildcard file: all lines as text, as a list, and how many.",
+            search_aliases=["load wildcard", "read wildcard file", "load list", "read lines"],
+            inputs=[
+                io.Combo.Input("file", options=sorted(_txt_files()) or [""],
+                               tooltip="New files appear here after reloading the browser page"),
+            ],
+            outputs=LINES_OUTPUTS,
+        )
+
+    @classmethod
+    def fingerprint_inputs(cls, **_kwargs):
         # ponytail: always re-read; a small text file is cheaper than tracking mtimes
-        # through linked inputs (Save -> Load in one run must see the new lines).
         return float("nan")
 
-    def load(self, file, name=None):
-        key = _key(name or file)
-        path = _txt_files().get(key.lower())
+    @classmethod
+    def execute(cls, file):
+        path = _txt_files().get(ops.file_key(file).lower())
         if not path:
-            raise ValueError(f"AB Wildcard Load: no wildcard file {key!r}.")
-        with open(path, encoding="utf8") as f:
-            lines = read_file_lines(f)
-        return ("\n".join(lines), lines, len(lines))
+            raise ValueError(f"AB Wildcard Load: there's no wildcard file {file!r}. Reload the page to refresh the list.")
+        return _lines_out(ops.load_lines(path))
 
 
-def _unescape(sep):
-    """Widgets can't hold a real newline in a one-line field: accept \\n and \\t."""
-    return (sep or "").replace("\\n", "\n").replace("\\t", "\t")
-
-
-def _compile(pattern, regex, field):
-    """Pattern -> compiled regex. Plain text matches literally and case-insensitively."""
-    if not regex:
-        return re.compile(re.escape(pattern), re.IGNORECASE)
-    try:
-        return re.compile(pattern)
-    except re.error as e:
-        raise ValueError(f"AB Text Lines: invalid regex in '{field}': {e}") from None
-
-
-ORDERS = ["as is", "sort", "sort desc", "reverse", "shuffle"]
-
-
-def text_lines(text, split_by="\\n", find="", replace="", keep="", drop="",
-               regex=False, dedupe=True, order="as is", seed=0, join_with="\\n"):
-    """The AB Text Lines pipeline; every step is a no-op at its default.
-
-    split -> find/replace -> trim, drop empty -> keep -> drop -> dedupe -> order -> join
-    """
-    sep = _unescape(split_by)
-    items = text.split(sep) if sep else [text]
-    if find:
-        rx = _compile(find, regex, "find")
-        # plain mode: the replacement is literal too (no \1 or \\ handling)
-        repl = replace if regex else (lambda _m: replace)
-        items = [rx.sub(repl, it) for it in items]
-    items = [it.strip() for it in items if it.strip()]
-    if keep:
-        rx = _compile(keep, regex, "keep")
-        items = [it for it in items if rx.search(it)]
-    if drop:
-        rx = _compile(drop, regex, "drop")
-        items = [it for it in items if not rx.search(it)]
-    if dedupe:
-        items = list(dict.fromkeys(items))
-    if order == "sort":
-        items.sort(key=str.casefold)
-    elif order == "sort desc":
-        items.sort(key=str.casefold, reverse=True)
-    elif order == "reverse":
-        items.reverse()
-    elif order == "shuffle":
-        random.Random(seed).shuffle(items)
-    return _unescape(join_with).join(items), items
-
-
-class ABTextLines:
+class ABTextLines(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        s = lambda default, tip: ("STRING", {"default": default, "tooltip": tip})
-        return {
-            "required": {
-                # A widget, not forceInput: forceInput next to the seed widget shifts every
-                # saved widget value by one on load (frontend 1.58). Linking still works.
-                "text": ("STRING", {"multiline": True, "tooltip": "Text to split, e.g. one item per line"}),
-                "split_by": s("\\n", "Split into items here (\\n = newline, \\t = tab, empty = one item)"),
-                "find": s("", "Replace this in every item (empty = off)"),
-                "replace": s("", "Replacement for find; with regex, \\1 inserts a group"),
-                "keep": s("", "Keep only items containing this (empty = all)"),
-                "drop": s("", "Remove items containing this (empty = none)"),
-                "regex": ("BOOLEAN", {"default": False, "tooltip": "find/keep/drop are regular expressions (case-sensitive); off = plain text, any case"}),
-                "dedupe": ("BOOLEAN", {"default": True, "tooltip": "Remove repeated items, first one wins"}),
-                "order": (ORDERS,),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "For shuffle"}),
-                "join_with": s("\\n", "Put between items in the text output"),
-            }
-        }
+    def define_schema(cls):
+        Opt, S = io.DynamicCombo.Option, io.String.Input
+        return io.Schema(
+            node_id="ABTextLines",
+            display_name="AB Text Lines",
+            category=CATEGORY,
+            description="One job on a list of lines: sort, filter, replace, remove duplicates, shuffle, "
+                        "or split and join. Chain several nodes for several jobs.",
+            search_aliases=["sort lines", "filter lines", "replace text", "remove duplicates", "dedupe",
+                            "shuffle lines", "split text", "join text", "list"],
+            inputs=[
+                S("text", multiline=True, tooltip="One item per line (other separators under advanced)"),
+                io.DynamicCombo.Input("operation", options=[
+                    Opt("sort", [io.Combo.Input("direction", options=ops.SORTS)]),
+                    Opt("filter", [
+                        io.Combo.Input("keep_lines_that", display_name="keep lines that", options=ops.MATCHES),
+                        S("match_text", display_name="text", tooltip="Empty keeps every line"),
+                    ]),
+                    Opt("replace", [
+                        S("find", tooltip="Any case; empty changes nothing"),
+                        S("replace_with", display_name="replace with"),
+                        io.Boolean.Input("use_regex", display_name="use regex", default=False, advanced=True,
+                                         tooltip="find is a regular expression (case-sensitive); replace with may use \\1"),
+                    ]),
+                    Opt("remove duplicates", [
+                        io.Boolean.Input("ignore_case", display_name="ignore case", default=False, advanced=True),
+                    ]),
+                    Opt("shuffle", [io.Int.Input("seed", default=0, min=0, max=UINT64, control_after_generate=True)]),
+                    Opt("split and join", [
+                        _separator("split_at", "split at", "comma"),
+                        _separator("join_with", "join with", "new line"),
+                    ]),
+                ]),
+                _separator("input_separator", "lines in text split at", advanced=True),
+                _separator("output_separator", "lines in output joined with", advanced=True),
+            ],
+            outputs=[
+                io.String.Output(display_name="text", tooltip="The lines, joined"),
+                *LINES_OUTPUTS[1:],
+            ],
+        )
 
-    RETURN_TYPES = ("STRING", "STRING", "INT")
-    RETURN_NAMES = ("text", "lines", "count")
-    OUTPUT_IS_LIST = (False, True, False)
-    FUNCTION = "run"
-    CATEGORY = CATEGORY
-    COLOR = COLOR
-    DESCRIPTION = (
-        "Split, replace, trim, filter, dedupe, sort or shuffle, join — in that order. "
-        "Items are always trimmed and empty ones dropped."
-    )
-
-    def run(self, text, **kwargs):
-        joined, items = text_lines(text, **kwargs)
-        return (joined, items, len(items))
-
-
-MIX_SLOTS = 4  # ponytail: fixed slots; growing inputs need frontend JS, add when 4 is too few
-
-
-class ABPromptMix:
     @classmethod
-    def INPUT_TYPES(cls):
-        optional = {}
-        for i in range(1, MIX_SLOTS + 1):
-            optional[f"text_{i}"] = ("STRING", {"forceInput": True})
-            optional[f"weight_{i}"] = ("FLOAT", {
-                "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05,
-                "tooltip": "each by chance: probability this piece is used. pick one weighted: its relative weight",
-            })
-        return {
-            "required": {
-                "mode": (["each by chance", "pick one weighted"],),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "separator": ("STRING", {"default": ", ", "tooltip": "Between used pieces (\\n = newline)"}),
-            },
-            "optional": optional,
-        }
+    def execute(cls, text, operation, input_separator, output_separator):
+        op = operation["operation"]
+        if op == "split and join":
+            input_separator, output_separator = operation["split_at"], operation["join_with"]
+        items = ops.split(text, *_sep(input_separator))
+        if op == "sort":
+            items = ops.sort_lines(items, operation["direction"])
+        elif op == "filter":
+            items = ops.filter_lines(items, operation["keep_lines_that"], operation["match_text"])
+        elif op == "replace":
+            items = ops.replace_lines(items, operation["find"], operation["replace_with"], operation["use_regex"])
+        elif op == "remove duplicates":
+            items = ops.remove_duplicates(items, operation["ignore_case"])
+        elif op == "shuffle":
+            items = ops.shuffle_lines(items, operation["seed"])
+        return io.NodeOutput(ops.join(items, *_sep(output_separator)), items, len(items))
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
-    FUNCTION = "mix"
-    CATEGORY = CATEGORY
-    COLOR = COLOR
-    DESCRIPTION = (
-        "Lets prompt pieces through by chance: each piece with its own probability, "
-        "or exactly one piece by weight. Same seed, same result."
-    )
 
-    def mix(self, mode, seed, separator, **slots):
-        rng = random.Random(seed)  # own RNG: the global one is seeded by AB Wildcard
-        pieces = [
-            ((slots.get(f"text_{i}") or "").strip(), float(slots.get(f"weight_{i}", 1.0)))
-            for i in range(1, MIX_SLOTS + 1)
-        ]
-        if mode == "each by chance":
-            # one roll per slot, connected or not: wiring slot 3 never changes slot 1's luck
-            rolls = [rng.random() for _ in pieces]
-            used = [t for (t, w), r in zip(pieces, rolls) if t and r < w]
+MIX_SLOTS = 4  # ponytail: fixed; growing slots with a weight each need DynamicSlot (frontend 1.58 lacks it)
+SOME, ONE = "some pieces (each by chance)", "one piece (by weight)"
+
+
+class ABPromptMix(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        slots = range(1, MIX_SLOTS + 1)
+        return io.Schema(
+            node_id="ABPromptMix",
+            display_name="AB Prompt Mix",
+            category=CATEGORY,
+            description="Lets prompt pieces through by chance: each piece with its own chance, "
+                        "or exactly one piece by weight. Same seed, same result.",
+            search_aliases=["random prompt", "chance", "probability", "weighted choice", "prompt pieces"],
+            inputs=[
+                # Widgets, not force_input sockets: sockets before a DynamicCombo and a seed make
+                # frontend 1.58 drop saved values on load. Linking a text still works.
+                *[io.String.Input(f"text_{i}", display_name=f"piece {i}", default="",
+                                  tooltip="Type a prompt piece or connect a text") for i in slots],
+                io.DynamicCombo.Input("use", options=[
+                    io.DynamicCombo.Option(SOME, [
+                        io.Int.Input(f"chance_{i}", display_name=f"chance {i} %", default=100, min=0, max=100,
+                                     display_mode=io.NumberDisplay.slider) for i in slots]),
+                    io.DynamicCombo.Option(ONE, [
+                        io.Float.Input(f"weight_{i}", display_name=f"weight {i}", default=1.0, min=0.0, max=10.0,
+                                       step=0.1) for i in slots]),
+                ]),
+                io.Int.Input("seed", default=0, min=0, max=UINT64, control_after_generate=True),
+                _separator("separator", "join with", "comma", advanced=True),
+            ],
+            outputs=[io.String.Output(display_name="text")],
+        )
+
+    @classmethod
+    def execute(cls, use, seed, separator, **pieces):
+        texts = [(pieces.get(f"text_{i}") or "").strip() for i in range(1, MIX_SLOTS + 1)]
+        if use["use"] == SOME:
+            used = ops.mix(texts, chances=[use[f"chance_{i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
         else:
-            live = [(t, w) for t, w in pieces if t and w > 0]
-            used = rng.choices([t for t, _ in live], weights=[w for _, w in live]) if live else []
-        return (_unescape(separator).join(used),)
+            used = ops.mix(texts, weights=[use[f"weight_{i}"] for i in range(1, MIX_SLOTS + 1)], seed=seed)
+        return io.NodeOutput(ops.join(used, *_sep(separator)))
