@@ -4,8 +4,12 @@ Status: all four steps built; check 1 passes; checks 2-3 passed in Nodes 2.0
 and Legacy with real clicks/keys, except: Cmd+Z/Cmd+A are not delivered as
 native edits by the built-in browser, so undo was checked with
 `document.execCommand("undo")` (one step restores text and widget value), and
-autocomplete with the bar open was checked in Nodes 2.0 only. Written against 1.4.0 (branch
-`feat/autocomplete-variables`, not yet released).
+autocomplete with the bar open was checked in Nodes 2.0 only. Release QA
+closed both gaps: Holger confirmed a real Cmd+Z undoes a replace in one step,
+and autocomplete with the bar open works in Legacy. QA also fixed Replace
+re-hitting the same spot (stale matches until the deferred repaint; now
+repainted at once and continued after the inserted text). Written against
+1.4.0 (released).
 Format note: this repo has no `.ab/`; the plan lives here like the other
 `docs/plan-*.md`, so any session can pick it up.
 
