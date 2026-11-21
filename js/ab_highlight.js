@@ -111,6 +111,11 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     const f = t.__abFind;
     if (f) {
       f.matches = findMatches(t.value, f.query);
+      if (f.after !== undefined) {
+        const next = f.matches.findIndex((x) => x.start >= f.after);
+        f.current = next < 0 ? 0 : next; // wrap like stepFind
+        f.after = undefined;
+      }
       f.current = f.matches.length ? Math.min(Math.max(f.current, 0), f.matches.length - 1) : -1;
       t.__abBar.querySelector(".ab-find-count").textContent = f.query ? `${f.matches.length ? f.current + 1 : 0} / ${f.matches.length}` : "";
       t.__abBar.style.top = t.offsetTop + 4 + "px";
@@ -186,8 +191,14 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
   function replaceOne(t, text) {
     const f = t.__abFind, m = f?.matches[f.current];
     if (!m) return;
+    // The paint below picks the first match after the inserted text, so a replacement
+    // that contains the query ("a" -> "aa") is not hit again.
+    f.after = m.start + text.length;
     insert(t, m.start, m.end, text);
-    f.reveal = true; // the next match slides into the same index
+    f.reveal = true;
+    // Repaint now, not on the deferred frame: a fast second Enter (or a hidden
+    // tab, where timers wait ~1s) would otherwise replace from stale matches.
+    paint(t);
     t.__abBar.querySelector(".ab-find-r").focus();
   }
 
@@ -195,6 +206,7 @@ export function installHighlighter({ resolveTextarea, getKnown }) {
     const f = t.__abFind;
     if (!f?.matches.length) return;
     insert(t, 0, t.value.length, replaceAll(t.value, f.query, text));
+    paint(t);
     t.__abBar.querySelector(".ab-find-r").focus();
   }
 
