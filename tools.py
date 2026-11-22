@@ -242,7 +242,9 @@ class ABLLMPrep(io.ComfyNode):
             inputs=[
                 io.String.Input("text", multiline=True, tooltip=(
                     "The prompt. Mark parts: [gen: what to write] · [gen spin: …] same meaning, other words · "
-                    "[gen expand: …] more detail · [gen short: …] shorter · [gen fit: …] adapt to the rest")),
+                    "[gen expand: …] more detail · [gen short: …] shorter · [gen fit: …] adapt to the rest · "
+                    "[gen do (instruction): …] your own instruction. Any part takes a hint: [gen spin (more gothic): …]. "
+                    "For every part: [gen theme: …] · [gen angle: camera] · [gen avoid: …] (removed from the output)")),
                 io.Combo.Input("scope", options=ops.LLM_SCOPES, tooltip=(
                     "What the LLM reads besides the parts: full = the whole prompt · "
                     "input = only the context input · none = just the parts")),

@@ -22,6 +22,11 @@ assert.deepEqual(toks("{30%a|b}"), ["brace:{", "prob:30%", "pipe:|", "brace:}"])
 assert.deepEqual(toks("{a|{b|c}}"), ["brace:{", "pipe:|", "brace:{", "pipe:|", "brace:}", "brace:}"]);
 assert.deepEqual(toks("[if $a AND b: x | y]"), ["ifKw:[if", "variable:$a", "ifSep::", "pipe:|", "ifKw:]"]);
 assert.deepEqual(toks("[clean: a, ,b]"), ["fn:[clean:", "fn:]"]);
+assert.deepEqual(toks("[gen: a job] [GEN spin : red]"), ["fn:[gen:", "fn:]", "fn:[GEN spin :", "fn:]"]);
+assert.deepEqual(toks("[gen fit: {a|b} $x]"), ["fn:[gen fit:", "brace:{", "pipe:|", "brace:}", "variable:$x", "fn:]"]);
+assert.deepEqual(toks("[generic] [gen x]"), [], "no colon, not a marker");
+assert.deepEqual(toks("[gen spin (more gothic): red] [gen theme: noir]"), ["fn:[gen spin (more gothic):", "fn:]", "fn:[gen theme:", "fn:]"]);
+assert.deepEqual(toks("[gen short: (gold:1.2) crown]"), ["fn:[gen short:", "fn:]"], "a weight after the colon is content");
 assert.deepEqual(toks("<[a AND (b OR --c)]>"),
   ["tagDelim:<", "tagDelim:[", "tagOp:AND", "tagOp:(", "tagOp:OR", "tagOp:--", "tagOp:)", "tagDelim:]", "tagDelim:>"]);
 assert.deepEqual(toks("<lora:x:0.8> a < b > c"), ["lora:<lora:x:0.8>"]);
@@ -39,6 +44,9 @@ assert.deepEqual(errs("a}"), ["Unmatched }@1"]);
 assert.deepEqual(errs("[if $a x]"), ["[if needs a ':' after the condition@0"]);
 assert.deepEqual(errs("[if $a: x"), ["Unclosed [if@0"]);
 assert.deepEqual(errs("[clean: a"), ["Unclosed [clean: / [shuffle:@0"]);
+assert.deepEqual(errs("x [gen spin: a"), ["Unclosed [gen@2"]);
+assert.deepEqual(diags("[gen spinn: a] [gen expand: b]"), ['warning:Unknown [gen …] operation "spinn": use fill, spin, expand, short, fit, do, theme, angle, avoid']);
+assert.deepEqual(diags("[gen do: a] [gen do (older): b]"), ["warning:[gen do …] needs an instruction: [gen do (what to do): …]"]);
 assert.deepEqual(errs("<[a AND b"), ["Unclosed <[ … ]>@0"]);
 assert.deepEqual(errs("[if $a: {x]"), ["Unclosed {@8"]);
 

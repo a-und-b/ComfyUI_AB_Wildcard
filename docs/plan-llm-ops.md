@@ -41,6 +41,69 @@ Found while building:
   So on that machine every saved graph with Text Lines (the wildcard-entries
   example included) fails until this is fixed; a graph built fresh runs.
 
+## Prompt review (2026-11-22)
+
+Done, offline (pytest), not yet re-checked live:
+- Tasks are labelled `Task N:`. Before, they read `N: Say "…" differently`, the
+  same shape as an answer line: a model that echoed the task list got the task
+  text spliced into the prompt (first line per number wins).
+- A part that is the whole prompt (default operation) is no longer shown twice
+  under scope full.
+- `fit` names what it compares against: "the rest of the prompt" (full) or
+  "the context" (input). With nothing to compare against (scope none, an empty
+  context, or the part is the whole prompt) Apply's report says so.
+- System prompt: "Each numbered task below" → "Each task names one numbered
+  part" (the tasks are in the user message, not below the system prompt).
+
+Open, needs a live A/B on dd-machine (4B and 9B, seeds 1–3) before it ships:
+- `fit` always rewrites, even a pick that already fits ("viking" in a viking
+  scene). Try: "If it already fits, write it unchanged."
+- Style: an `expand` on a comma-separated tag prompt may come back as a
+  sentence. Try: "Match the prompt's style: a comma list stays a comma list."
+- One short worked example in the system prompt (different content than any
+  real prompt) for format adherence on 4B; watch for copied example content.
+- `short` on one or two words always asks for 1 word; maybe skip the call and
+  keep the part.
+- Wildcard-entries example: an intro line from the model ("Here are 20 …")
+  lands in the file. Add a Text Lines filter (match regex `^\d+[.:)]`) before
+  the replace, as in the recipe in `docs/llm-agents.md`.
+
+## Directions, hints and `do` (2026-11-22)
+
+Decided (Holger): angles are both content (what to emphasise) and camera
+(where the camera is). Target model is the 9B encoder. Goal: an agent (Claude
+via MCP) writes the instructions; the local LLM applies them per run.
+
+- `[gen theme: …]`, `[gen angle: …]`, `[gen avoid: …]`: directions for every
+  part, shown as a "Direction for every task" block, each task ends with
+  "Follow the direction above." Removed from the output with one neighbouring
+  comma or their whole line.
+- Hint per marker: `[gen <op> (hint): …]` → "Also: hint." on that task. The
+  hint sits before the first colon, so `(word:1.2)` in the content stays content.
+- `[gen do (instruction): …]`: rewrite by the instruction only; without one, Prep raises.
+- Format contract (`N: …` lines) stays in code; agents write only content.
+- Agent guide: `docs/llm-agents.md` §5a (rules for instructions, test loop).
+- Not checked live yet: how strongly the 9B follows directions (theme
+  bleeding into every part, camera on `short`). Check with
+  `python scripts/llm_eval.py --seeds 1-3 --show-prompt` on dd-machine: compare
+  `baseline` with `theme` and `angle`, and read `fit-fits` and `weights` for
+  the open items of the prompt review.
+
+## Weights and tags (2026-11-22)
+
+Found: everything inside a marker went through the LLM, so `(gold:1.2)` was
+lost and a `<lora:…>` tag disappeared without a word. Now kept by code, not by
+asking the model:
+- `<…>` tags come out of the part before Prep and go back behind the answer.
+- A weight on the whole part (`[gen spin: (red dress:1.3)]`) is unwrapped for
+  the LLM and wraps the answer again; `([gen …]:1.3)` around the marker always
+  worked, Apply never touches it.
+- A weight on a piece of a part can't follow a rewrite: Prep removes it, the
+  report says `weight (…) dropped`. A fallback keeps the part exactly as written.
+- A part that is only a tag raises in Prep.
+- Not decided: whether weights matter at all with LLM text encoders
+  (Qwen-Image, Z-Image); with CLIP they clearly do.
+
 ## Goal
 
 Targeted LLM edits on marked parts of a prompt, as nodes in the chain: spin,
