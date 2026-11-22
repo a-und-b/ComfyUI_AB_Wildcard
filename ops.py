@@ -194,8 +194,8 @@ LLM_SCOPES = ["full", "input", "none"]
 _MARKER = re.compile(r"\[gen(?:\s+(\w+))?\s*:\s*([^\]]*?)\s*\]", re.IGNORECASE)
 
 LLM_SYSTEM = (
-    "You edit parts of a text-to-image prompt. Each numbered task below names one part "
-    "and what to do with it. Reply with exactly one line per task, in order, in the form "
+    "You edit parts of a text-to-image prompt. Each task names one numbered part and "
+    "what to do with it. Reply with exactly one line per task, in order, in the form "
     "\"N: new text\". Write only the new text for that part: no explanations, no quotes, "
     "no notes, no other lines."
 )
@@ -210,10 +210,11 @@ LLM_TASKS = {
     "expand": "Rewrite \"{c}\" with more visual detail (materials, colors, light, setting): "
               "at least twice as many words, same subject.",
     "short": "Shorten \"{c}\" to at most {n} words. Keep the core, drop details.",
-    "fit": "\"{c}\" clashes with the rest of the prompt. Rewrite it to match the prompt's era, "
-           "setting and style: keep what kind of thing it is (a place stays a place), change "
-           "the details that clash.",
+    "fit": "\"{c}\" clashes with {ref}. Rewrite it to match {ref}'s era, setting and style: "
+           "keep what kind of thing it is (a place stays a place), change the details that clash.",
 }
+# What fit compares against, per scope; scope none gives the LLM nothing to fit to.
+_FIT_REF = {"full": "the rest of the prompt", "input": "the context"}
 
 
 def llm_slots(text, default_op="none"):
@@ -246,6 +247,17 @@ def llm_prep(text, scope="full", default_op="none", context=""):
         # ponytail: a trivial request instead of blocking; an ExecutionBlocker here would block the image too
         return LLM_NO_SLOTS_SYSTEM, "OK?", plan
 
+    asked = scope
+    whole = len(slots) == 1 and not text[:slots[0]["start"]].strip() and not text[slots[0]["end"]:].strip()
+    if scope == "full" and whole:
+        scope = "none"  # the slot is the whole prompt: showing it twice adds nothing
+    blind = [i for i, s in enumerate(slots, 1)
+             if s["op"] == "fit" and (scope == "none" or (scope == "input" and not (context or "").strip()))]
+    if blind:  # shown in Apply's report: fit without anything to fit to is a guess
+        plan["notes"] = [f"{i} fit: nothing to fit it to (scope {asked}"
+                         + (", and the part is the whole prompt)" if whole and asked == "full" else ")")
+                         for i in blind]
+
     if scope == "full":
         # the prompt as the model sees it: every marker shown as [N: content]
         parts, pos = [], 0
@@ -257,7 +269,9 @@ def llm_prep(text, scope="full", default_op="none", context=""):
         context = ""
     context = (context or "").strip()
 
-    tasks = [f"{i}: " + LLM_TASKS[s["op"]].format(c=s["content"], n=_word_limit(s["content"]))
+    # "Task N:", not "N:": a model that echoes the task list must not have it parsed as its answer
+    ref = _FIT_REF.get(scope, "the rest of the prompt")
+    tasks = [f"Task {i}: " + LLM_TASKS[s["op"]].format(c=s["content"], n=_word_limit(s["content"]), ref=ref)
              for i, s in enumerate(slots, 1)]
     prompt = (f"The prompt (parts to edit marked [N: …]):\n{context}\n\n" if scope == "full" else
               f"Context:\n{context}\n\n" if context else "")
@@ -287,7 +301,7 @@ def llm_apply(plan, answer):
     if not slots:
         return text, "No [gen …] parts and default operation none: text passed through, answer ignored."
     found = parse_llm_lines(answer, len(slots))
-    out, pos, report = [], 0, []
+    out, pos, report = [], 0, list(plan.get("notes", []))
     for i, s in enumerate(slots, 1):
         new, why = found.get(i), None
         if new is None:

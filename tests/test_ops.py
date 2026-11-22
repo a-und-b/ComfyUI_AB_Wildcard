@@ -200,3 +200,29 @@ def test_llm_apply_splices_and_falls_back_per_slot():
 def test_llm_apply_whole_text():
     _s, _p, plan = ops.llm_prep("a big red ball on a table", "full", "short")
     assert ops.llm_apply(plan, "1: red ball.")[0] == "red ball"
+
+
+def test_llm_prep_task_echo_is_not_an_answer():
+    # a model that repeats the task list first must not get "Say … differently" spliced in
+    _s, prompt, plan = ops.llm_prep("a knight, [gen spin: red dress]", "full")
+    echo = [ln for ln in prompt.splitlines() if ln.startswith("Task 1:")]
+    assert echo
+    text, _r = ops.llm_apply(plan, echo[0] + "\n1: crimson gown")
+    assert text == "a knight, crimson gown"
+
+
+def test_llm_prep_whole_text_is_not_sent_twice():
+    _s, prompt, _p = ops.llm_prep("a cozy cabin at dusk", "full", "expand")
+    assert prompt.count("a cozy cabin at dusk") == 1
+
+
+def test_llm_fit_names_its_reference_and_warns_without_one():
+    _s, prompt, plan = ops.llm_prep("[gen fit: neon street]", "input", context="medieval village")
+    assert "clashes with the context" in prompt and "notes" not in plan
+    _s, prompt, plan = ops.llm_prep("a knight, [gen fit: neon street]", "full")
+    assert "clashes with the rest of the prompt" in prompt and "notes" not in plan
+    _s, _p, plan = ops.llm_prep("a knight, [gen fit: neon street]", "none")
+    _t, report = ops.llm_apply(plan, "1: old town lane")
+    assert report.splitlines()[0] == "1 fit: nothing to fit it to (scope none)"
+    _s, _p, plan = ops.llm_prep("a neon street", "full", "fit")
+    assert "whole prompt" in ops.llm_apply(plan, "1: x")[1]

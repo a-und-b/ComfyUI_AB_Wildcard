@@ -41,6 +41,35 @@ Found while building:
   So on that machine every saved graph with Text Lines (the wildcard-entries
   example included) fails until this is fixed; a graph built fresh runs.
 
+## Prompt review (2026-11-22)
+
+Done, offline (pytest), not yet re-checked live:
+- Tasks are labelled `Task N:`. Before, they read `N: Say "…" differently`, the
+  same shape as an answer line: a model that echoed the task list got the task
+  text spliced into the prompt (first line per number wins).
+- A part that is the whole prompt (default operation) is no longer shown twice
+  under scope full.
+- `fit` names what it compares against: "the rest of the prompt" (full) or
+  "the context" (input). With nothing to compare against (scope none, an empty
+  context, or the part is the whole prompt) Apply's report says so.
+- System prompt: "Each numbered task below" → "Each task names one numbered
+  part" (the tasks are in the user message, not below the system prompt).
+
+Open, needs a live A/B on dd-machine (4B and 9B, seeds 1–3) before it ships:
+- `fit` always rewrites, even a pick that already fits ("viking" in a viking
+  scene). Try: "If it already fits, write it unchanged."
+- Style: an `expand` on a comma-separated tag prompt may come back as a
+  sentence. Try: "Match the prompt's style: a comma list stays a comma list."
+- Weights and LoRA tags inside a part (`(gold:1.2)`, `<lora:…>`) are not
+  protected. Try: "Keep (word:1.2) weights and <…> tags exactly as they are."
+- One short worked example in the system prompt (different content than any
+  real prompt) for format adherence on 4B; watch for copied example content.
+- `short` on one or two words always asks for 1 word; maybe skip the call and
+  keep the part.
+- Wildcard-entries example: an intro line from the model ("Here are 20 …")
+  lands in the file. Add a Text Lines filter (match regex `^\d+[.:)]`) before
+  the replace, as in the recipe in `docs/llm-agents.md`.
+
 ## Goal
 
 Targeted LLM edits on marked parts of a prompt, as nodes in the chain: spin,

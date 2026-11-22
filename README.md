@@ -162,6 +162,8 @@ Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives
 
 The CLIP type only matters for loading; the same weights give the same text. Keep **thinking** off; `max_length` 512 is enough for a handful of parts.
 
+**Building workflows with an LLM agent** (e.g. through a ComfyUI MCP server)? [`docs/llm-agents.md`](docs/llm-agents.md) has every node's API names, the syntax, discovery endpoints and ready-to-queue recipes.
+
 **One node instead of three.** The subgraph blueprint **AB LLM Edit** (node library → subgraphs) bundles Prep, Generate Text and Apply: connect `text` and your `clip`, read `text` and `report`.
 
 ---
