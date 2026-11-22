@@ -1,6 +1,7 @@
 # Plan: LoRAs from the prompt (AB LoRA Loader)
 
-Status: merged (PR a-und-b/ComfyUI_AB_Wildcard#10), not released yet.
+Status: released as 1.9.0 on 2026-11-22 (PR a-und-b/ComfyUI_AB_Wildcard#10,
+fixes from #13), publish run succeeded.
 Checked live on dd-machine (2026-11-22, ComfyUI 0.46.2, juggernautXL +
 `SDXL/Standard/princess_xl_v2`, same seed): with vs without the LoRA differ
 clearly (mean pixel diff 38/255); `<LORA:sdxl/standard/Princess_XL_v2.safetensors:1>`

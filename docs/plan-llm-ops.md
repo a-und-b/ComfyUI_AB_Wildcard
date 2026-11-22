@@ -1,6 +1,10 @@
 # Plan: surgical LLM operations in the prompt chain (AB LLM Prep / Apply)
 
-Status: released as 1.8.0 on 2026-11-21 (`feat/llm-ops` rebased onto `main`
+Status: directions, hints, `do`, weight/tag protection and the live tuning
+(PRs a-und-b/ComfyUI_AB_Wildcard#12 and #13) released as 1.9.0 on 2026-11-22,
+publish run succeeded.
+
+First release: 1.8.0 on 2026-11-21 (`feat/llm-ops` rebased onto `main`
 after PR a-und-b/ComfyUI_AB_Wildcard#9, fast-forwarded, publish run
 succeeded; registry showed 1.8.0 as pending review right after the run).
 Checked: pytest (75, 9 new) and syntax tests green; live on dd-machine (ComfyUI
