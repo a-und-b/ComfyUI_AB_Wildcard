@@ -217,9 +217,9 @@ The text field colours the syntax as you type and marks mistakes.
 
 ![Highlighted prompt with an underlined unknown wildcard and an unclosed brace](example_workflows/ab-wildcard-highlighting-preview.png)
 
-- **Colours** — comments, variables (as green chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]` and `[clean:]`.
-- **Red wavy underline** — an error: an unclosed `{`, `[if`, `<[`, `[clean:` or `[shuffle:`, an unmatched `}`, or `[if` without `:`.
-- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), or `{@…}` inside `{@…}` (not counted evenly).
+- **Colours** — comments, variables (as green chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]`, `[clean:]` and `[gen …]` markers.
+- **Red wavy underline** — an error: an unclosed `{`, `[if`, `<[`, `[clean:`, `[shuffle:` or `[gen`, an unmatched `}`, or `[if` without `:`.
+- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), `{@…}` inside `{@…}` (not counted evenly), or an unknown `[gen …]` operation such as `[gen spinn: …]` (AB LLM Prep would stop the run).
 - **Blue dotted underline** — a hint: a `//` or `#` inside a block or URL starts a comment.
 - A strip at the bottom of the field gives the counts and the message at the caret.
 
