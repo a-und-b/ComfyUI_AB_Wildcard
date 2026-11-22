@@ -1,0 +1,3 @@
+# Left out of the Registry zip (comfy node publish). Dev-only tools;
+# scripts/llm_eval.py calls a live ComfyUI over HTTP, which the Registry scanner flags.
+scripts/
