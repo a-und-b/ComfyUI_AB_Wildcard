@@ -139,6 +139,19 @@ AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generat
 | `[gen expand: castle]` | more detail |
 | `[gen short: …]` | shorter, keeps the core |
 | `[gen fit: {viking\|pirate}]` | adapts it to the rest of the prompt, keeps its core |
+| `[gen do (a 1920s version): astronaut]` | follows your own instruction |
+
+**Hints.** Any part takes a hint in brackets before the colon: `[gen expand (focus on light and weather): castle]`, `[gen spin (more gothic): red silk dress]`. No `:` inside the hint.
+
+**Directions for every part.** These markers are not rewritten themselves; every part follows them, and they are removed from the finished prompt:
+
+| Marker | Guides every part toward |
+|--------|--------------------------|
+| `[gen theme: dark fairy tale, muted colors]` | a theme or style |
+| `[gen angle: low angle, 24mm lens]` | a camera position: parts are written as seen from there |
+| `[gen avoid: modern objects]` | leaving things out |
+
+Pick them with wildcards like anything else: `$cam = {low angle|bird's eye view}`, then `[gen angle: $cam]` for the LLM and `$cam` in the prompt if the image model should get it too.
 
 Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives as `[gen fit: viking]`: `fit` smooths a random pick without touching anything else. `#` and `//` inside a marker are removed as comments, like everywhere in AB Wildcard.
 

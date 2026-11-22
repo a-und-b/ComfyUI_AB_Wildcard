@@ -70,6 +70,24 @@ Open, needs a live A/B on dd-machine (4B and 9B, seeds 1–3) before it ships:
   lands in the file. Add a Text Lines filter (match regex `^\d+[.:)]`) before
   the replace, as in the recipe in `docs/llm-agents.md`.
 
+## Directions, hints and `do` (2026-11-22)
+
+Decided (Holger): angles are both content (what to emphasise) and camera
+(where the camera is). Target model is the 9B encoder. Goal: an agent (Claude
+via MCP) writes the instructions; the local LLM applies them per run.
+
+- `[gen theme: …]`, `[gen angle: …]`, `[gen avoid: …]`: directions for every
+  part, shown as a "Direction for every task" block, each task ends with
+  "Follow the direction above." Removed from the output with one neighbouring
+  comma or their whole line.
+- Hint per marker: `[gen <op> (hint): …]` → "Also: hint." on that task. The
+  hint sits before the first colon, so `(word:1.2)` in the content stays content.
+- `[gen do (instruction): …]`: rewrite by the instruction only; without one, Prep raises.
+- Format contract (`N: …` lines) stays in code; agents write only content.
+- Agent guide: `docs/llm-agents.md` §5a (rules for instructions, test loop).
+- Not checked live yet: how strongly the 9B follows directions (theme
+  bleeding into every part, camera on `short`).
+
 ## Goal
 
 Targeted LLM edits on marked parts of a prompt, as nodes in the chain: spin,

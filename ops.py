@@ -188,10 +188,13 @@ def load_lines(path):
 # generator (core Generate Text or any other); Apply splices its numbered-line answer
 # back. Text outside the markers never passes through the LLM.
 
-LLM_OPS = ["fill", "spin", "expand", "short", "fit"]
+LLM_OPS = ["fill", "spin", "expand", "short", "fit", "do"]
 LLM_DEFAULT_OPS = ["none", "spin", "expand", "short", "fit"]
 LLM_SCOPES = ["full", "input", "none"]
-_MARKER = re.compile(r"\[gen(?:\s+(\w+))?\s*:\s*([^\]]*?)\s*\]", re.IGNORECASE)
+# Directions: not parts to rewrite but guidance for every part; removed from the output.
+LLM_DIRECTIONS = {"theme": "Theme", "angle": "Camera", "avoid": "Avoid"}
+# [gen op (hint): content] — the hint sits before the first colon, so (word:1.2) in the content stays content
+_MARKER = re.compile(r"\[gen(?:\s+(\w+))?\s*(?:\(([^():\]]*)\))?\s*:\s*([^\]]*?)\s*\]", re.IGNORECASE)
 
 LLM_SYSTEM = (
     "You edit parts of a text-to-image prompt. Each task names one numbered part and "
@@ -201,7 +204,8 @@ LLM_SYSTEM = (
 )
 LLM_NO_SLOTS_SYSTEM = "Reply with OK."
 
-# Per-operation task. {c} = the part's original content, {n} = word limit for short.
+# Per-operation task. {c} = the part's original content, {n} = word limit for short,
+# {ref} = what fit compares against, {h} = the marker's hint (do only; other ops append it).
 LLM_TASKS = {
     "fill": "Write the concrete thing this asks for, in a few words (an actual example, not a "
             "description of the request): {c}",
@@ -212,26 +216,86 @@ LLM_TASKS = {
     "short": "Shorten \"{c}\" to at most {n} words. Keep the core, drop details.",
     "fit": "\"{c}\" clashes with {ref}. Rewrite it to match {ref}'s era, setting and style: "
            "keep what kind of thing it is (a place stays a place), change the details that clash.",
+    "do": "Rewrite \"{c}\" as follows: {h}. Write it as a short image-prompt phrase.",
 }
 # What fit compares against, per scope; scope none gives the LLM nothing to fit to.
 _FIT_REF = {"full": "the rest of the prompt", "input": "the context"}
+_DIRECTION_NOTE = {"angle": " (write every part as seen from this camera position)"}
+
+
+def _unknown_op(marker):
+    return ValueError(f"AB LLM Prep: unknown operation {marker!r}. Use [gen: …], "
+                      f"[gen spin|expand|short|fit|do: …] or [gen theme|angle|avoid: …].")
+
+
+def llm_directions(text):
+    """(text without direction markers, {name: [values]}).
+
+    A removed marker takes one neighbouring comma with it, and its line if it stood alone.
+    """
+    found, out, pos = {}, [], 0
+    for m in _MARKER.finditer(text or ""):
+        name = (m.group(1) or "").lower()
+        if name not in LLM_DIRECTIONS:
+            continue
+        if m.group(3):
+            found.setdefault(name, []).append(m.group(3))
+        start, end = m.start(), m.end()
+        after = re.match(r"[ \t]*,[ \t]*", text[end:])
+        before = re.search(r",[ \t]*$", text[pos:start])
+        if after:
+            end += after.end()
+        elif before:
+            start = pos + before.start()
+        elif start == 0 or text[start - 1] in " \t":
+            end += len(re.match(r"[ \t]*", text[end:]).group())  # "a [gen theme: x] b" -> "a b"
+            if end == len(text) or text[end] == "\n":
+                start = pos + len(text[pos:start].rstrip(" \t"))  # "a [gen theme: x]" -> "a"
+        line_start = text.rfind("\n", 0, start) + 1
+        line_end = text.find("\n", end)
+        line_end = len(text) if line_end < 0 else line_end
+        if not text[line_start:start].strip() and not text[end:line_end].strip():
+            start, end = max(line_start, pos), min(line_end + 1, len(text))  # whole line
+            if line_end == len(text) and start > pos and text[start - 1] == "\n":
+                start -= 1  # last line: take the newline before it instead
+        out.append(text[pos:start])
+        pos = end
+    out.append((text or "")[pos:])
+    return "".join(out), found
 
 
 def llm_slots(text, default_op="none"):
-    """Marker spans in text: [{op, content, start, end}].
+    """Marker spans in text: [{op, content, hint, start, end}]. Direction markers are skipped.
 
     Text without markers is one slot with default_op ('none': no slots).
     """
     slots = []
     for m in _MARKER.finditer(text or ""):
         op = (m.group(1) or "fill").lower()
+        if op in LLM_DIRECTIONS:
+            continue
         if op not in LLM_OPS:
-            raise ValueError(f"AB LLM Prep: unknown operation {m.group(0)!r}. "
-                             f"Use [gen: …] or [gen spin|expand|short|fit: …].")
-        slots.append({"op": op, "content": m.group(2), "start": m.start(), "end": m.end()})
+            raise _unknown_op(m.group(0))
+        hint = (m.group(2) or "").strip()
+        if op == "do" and not hint:
+            raise ValueError(f"AB LLM Prep: {m.group(0)!r} needs an instruction: [gen do (what to do): …].")
+        slots.append({"op": op, "content": m.group(3), "hint": hint, "start": m.start(), "end": m.end()})
     if not slots and default_op != "none" and (text or "").strip():
-        slots.append({"op": default_op, "content": text.strip(), "start": 0, "end": len(text)})
+        slots.append({"op": default_op, "content": text.strip(), "hint": "", "start": 0, "end": len(text)})
     return slots
+
+
+def _task(i, slot, ref, directed):
+    t = LLM_TASKS[slot["op"]].format(c=slot["content"], n=_word_limit(slot["content"]), ref=ref,
+                                     h=slot["hint"].rstrip("."))
+    extra = []
+    if slot["hint"] and slot["op"] != "do":
+        extra.append(f"Also: {slot['hint'].rstrip('.')}.")
+    if directed:
+        extra.append("Follow the direction above.")
+    if extra:
+        t = t.rstrip() + ("" if t.rstrip()[-1:] in ".!?" else ".") + " " + " ".join(extra)
+    return f"Task {i}: {t}"
 
 
 def _word_limit(content):
@@ -240,10 +304,16 @@ def _word_limit(content):
 
 def llm_prep(text, scope="full", default_op="none", context=""):
     """(system_prompt, prompt, plan) for one generator call."""
-    text = text or ""
+    for m in _MARKER.finditer(text or ""):  # fail on a typo before anything else
+        if (m.group(1) or "fill").lower() not in LLM_OPS and m.group(1).lower() not in LLM_DIRECTIONS:
+            raise _unknown_op(m.group(0))
+    text, directions = llm_directions(text or "")
     slots = llm_slots(text, default_op)
     plan = {"text": text, "slots": slots}
     if not slots:
+        if directions:
+            plan["notes"] = ["no parts to edit: " + ", ".join(f"[gen {d}: …]" for d in directions)
+                             + " removed, nothing else changed"]
         # ponytail: a trivial request instead of blocking; an ExecutionBlocker here would block the image too
         return LLM_NO_SLOTS_SYSTEM, "OK?", plan
 
@@ -271,10 +341,13 @@ def llm_prep(text, scope="full", default_op="none", context=""):
 
     # "Task N:", not "N:": a model that echoes the task list must not have it parsed as its answer
     ref = _FIT_REF.get(scope, "the rest of the prompt")
-    tasks = [f"Task {i}: " + LLM_TASKS[s["op"]].format(c=s["content"], n=_word_limit(s["content"]), ref=ref)
-             for i, s in enumerate(slots, 1)]
+    tasks = [_task(i, s, ref, bool(directions)) for i, s in enumerate(slots, 1)]
     prompt = (f"The prompt (parts to edit marked [N: …]):\n{context}\n\n" if scope == "full" else
               f"Context:\n{context}\n\n" if context else "")
+    if directions:
+        prompt += "Direction for every task:\n" + "".join(
+            f"- {LLM_DIRECTIONS[d]}: {'; '.join(v)}{_DIRECTION_NOTE.get(d, '')}\n"
+            for d, v in ((d, directions[d]) for d in LLM_DIRECTIONS if d in directions)) + "\n"
     prompt += "Tasks:\n" + "\n".join(tasks)
     prompt += f"\n\nAnswer with exactly {len(slots)} line{'s' if len(slots) > 1 else ''}, " \
               + ", ".join(f"\"{i}: …\"" for i in range(1, len(slots) + 1)) + "."
@@ -299,7 +372,8 @@ def llm_apply(plan, answer):
     """(text, report): each slot's answer spliced into the original text, or its fallback."""
     text, slots = plan["text"], plan["slots"]
     if not slots:
-        return text, "No [gen …] parts and default operation none: text passed through, answer ignored."
+        return text, "\n".join(plan.get("notes", []) + [
+            "No [gen …] parts and default operation none: text passed through, answer ignored."])
     found = parse_llm_lines(answer, len(slots))
     out, pos, report = [], 0, list(plan.get("notes", []))
     for i, s in enumerate(slots, 1):

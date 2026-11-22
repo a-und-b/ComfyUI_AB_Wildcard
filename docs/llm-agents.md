@@ -187,6 +187,20 @@ error: it stays literally in the output.** Check the output for leftover
 | `[gen expand: castle]` | more visual detail |
 | `[gen short: …]` | shorter, keeps the core |
 | `[gen fit: {viking\|pirate}]` | adapt to the rest of the prompt, keep what kind of thing it is |
+| `[gen do (instruction): astronaut]` | follow your instruction (required) |
+| `[gen <op> (hint): …]` | any operation plus an extra instruction, e.g. `[gen expand (focus on light): castle]` |
+
+Directions are not rewritten; every part follows them, and they are removed
+from the output (with one neighbouring comma, or their whole line):
+
+| Marker | Shown to the LLM as |
+|---|---|
+| `[gen theme: …]` | `- Theme: …` |
+| `[gen angle: …]` | `- Camera: … (write every part as seen from this camera position)` |
+| `[gen avoid: …]` | `- Avoid: …` |
+
+Several markers of one kind are joined with `; `. Without any part to edit,
+directions are just removed and the text passes through.
 
 - Put `ABWildcardNode` **before** Prep: wildcards inside a marker resolve first
   (`[gen fit: {viking|pirate}]` → `[gen fit: viking]`), so `fit` smooths a random pick.
@@ -221,6 +235,71 @@ Wire `generated_text` (output 0) into Apply. Any other text generator works too
 Encoders that generate (ComfyUI 0.46.2): `qwen3.5_9b_int8_convrot.safetensors`
 (type `qwen_image`, best) and `qwen_3_4b.safetensors` (type `lumina2`, faster,
 weaker on `fit` and `[gen: …]`). `qwen_3_8b_fp8mixed` cannot generate.
+
+---
+
+## 5a. Writing instructions for the small LLM
+
+You (the agent) write the instructions once; the local model applies them on
+every queued run, to whatever the wildcards picked. That is the point of the
+LLM nodes: per-run adaptation without a round trip to you. If a single fixed
+prompt is all you need, write it yourself and skip Prep/Apply.
+
+What the local model sees, for
+
+```text
+$t = {dark fairy tale|solarpunk}
+[gen theme: $t]
+[gen angle: low angle, 24mm lens]
+a portrait of a {knight|pilot}, [gen spin (more ornate): red silk dress], [gen fit: neon street]
+```
+
+(after AB Wildcard picked `dark fairy tale` and `knight`):
+
+```text
+The prompt (parts to edit marked [N: …]):
+a portrait of a knight, [1: red silk dress], [2: neon street]
+
+Direction for every task:
+- Theme: dark fairy tale
+- Camera: low angle, 24mm lens (write every part as seen from this camera position)
+
+Tasks:
+Task 1: Say "red silk dress" differently: … Also: more ornate. Follow the direction above.
+Task 2: "neon street" clashes with the rest of the prompt. Rewrite it … Follow the direction above.
+
+Answer with exactly 2 lines, "1: …", "2: …".
+```
+
+The answer format and the rules around it are fixed in code; you never write
+them. You write only theme, angle, avoid, hints and `do` instructions.
+
+Rules that work with the recommended 9B encoder:
+
+- **Write for every pick, not for one.** `[gen fit (make the armour fit): $who]`
+  breaks when `$who` is a pilot. Test with several seeds.
+- **Concrete over abstract.** `muted greens, fog, wet stone` works;
+  `melancholic vibe` gets ignored or overdone.
+- **One change per hint.** Several wishes go into several parts or into a direction.
+- **Give limits as numbers**: `max 6 words`.
+- **Avoid negations in hints and themes** (`no people` tends to add people).
+  Use `[gen avoid: people]`; it is phrased as a separate rule.
+- **Never use `:`, `(`, `)` or `]` inside a hint**, and no `#` or `//` anywhere in a
+  marker. A `:` ends the hint; `#` and `//` cut the line.
+- **Content angle vs camera angle:** what to emphasise goes into a hint
+  (`expand (focus on materials)`), where the camera is goes into `[gen angle: …]`.
+  Directions reach the LLM only. To put the camera into the image prompt too,
+  use a variable for both: `$cam = {low angle|bird's eye view}`, `[gen angle: $cam]`, and `$cam` in the text.
+- **Don't let the LLM choose.** Put the options into `{a|b|c}` or a wildcard file
+  and let the LLM adapt the pick; LLM choices collapse to the same safe answer.
+
+Loop before you queue a batch:
+
+1. Wire Prep output 1 (`prompt`) and Apply output 1 (`report`) into `PreviewAny`.
+2. Queue 3–5 runs with different `ABWildcardNode.seed` and `sampling_mode.seed`.
+3. Read the prompt the model got and the report: a `fallback` means no usable
+   answer; an unchanged or odd answer means the instruction was unclear.
+4. Sharpen the hint or direction, repeat, then queue the batch.
 
 ---
 
@@ -303,7 +382,8 @@ it: small models repeat themselves.
 |---|---|---|
 | `__name__` or `<name>` left in the output | no such file or card | look the name up via `/ab_wildcard/wildcards` |
 | Prompt cut off mid-line | `#` or `//` in the text | remove them or rephrase |
-| `AB LLM Prep: unknown operation …` | `[gen foo: …]` | use `fill` (no name), `spin`, `expand`, `short`, `fit` |
+| `AB LLM Prep: unknown operation …` | `[gen foo: …]` | use `[gen: …]`, `spin`, `expand`, `short`, `fit`, `do`, `theme`, `angle`, `avoid` |
+| `AB LLM Prep: … needs an instruction` | `[gen do: …]` without `(…)` | `[gen do (what to do): …]` |
 | report: `fallback (no line for it in the answer)` | model ignored the format | raise `max_length`, keep `thinking` off, try the 9B encoder |
 | report: `nothing to fit it to` | `fit` with `scope` `none`, or the part is the whole prompt | use `full` with surrounding text, or `input` with `context` |
 | `'NoneType' object has no attribute 'device'` in Generate Text | encoder file without LM head | use an encoder from §5 |

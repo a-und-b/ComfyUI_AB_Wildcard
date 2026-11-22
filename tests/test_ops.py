@@ -226,3 +226,45 @@ def test_llm_fit_names_its_reference_and_warns_without_one():
     assert report.splitlines()[0] == "1 fit: nothing to fit it to (scope none)"
     _s, _p, plan = ops.llm_prep("a neon street", "full", "fit")
     assert "whole prompt" in ops.llm_apply(plan, "1: x")[1]
+
+
+@pytest.mark.parametrize("text, clean", [
+    ("a cat, [gen theme: noir], in rain", "a cat, in rain"),
+    ("[gen theme: noir], a cat", "a cat"),
+    ("a cat, [gen angle: low angle]", "a cat"),
+    ("[gen theme: noir]\na cat", "a cat"),
+    ("a cat\n[gen theme: noir]", "a cat"),
+    ("a cat [gen avoid: text] in rain", "a cat in rain"),
+    ("a cat [gen theme: noir]", "a cat"),
+])
+def test_llm_directions_leave_the_output(text, clean):
+    assert ops.llm_directions(text)[0] == clean
+
+
+def test_llm_directions_and_hints_reach_every_task():
+    text = ("[gen theme: dark fairy tale]\n[gen angle: low angle]\n[gen theme: muted colors]\n"
+            "a knight, [gen spin (more gothic): red dress], [gen short: (gold:1.2) crown with jewels]")
+    _s, prompt, plan = ops.llm_prep(text, "full")
+    assert plan["text"].startswith("a knight") and "theme" not in prompt.split("Direction")[0]
+    assert "- Theme: dark fairy tale; muted colors\n- Camera: low angle" in prompt
+    task1, task2 = [ln for ln in prompt.splitlines() if ln.startswith("Task ")]
+    assert task1.endswith("Also: more gothic. Follow the direction above.")
+    assert '"(gold:1.2) crown with jewels"' in task2 and task2.endswith("Follow the direction above.")
+    assert [s["hint"] for s in plan["slots"]] == ["more gothic", ""]
+    assert ops.llm_apply(plan, "1: black lace gown\n2: crown")[0] == "a knight, black lace gown, crown"
+
+
+def test_llm_do_needs_an_instruction():
+    _s, prompt, _p = ops.llm_prep("a [gen do (a 1920s version, max 6 words): astronaut]", "none")
+    assert 'Rewrite "astronaut" as follows: a 1920s version, max 6 words.' in prompt
+    with pytest.raises(ValueError, match="needs an instruction"):
+        ops.llm_prep("a [gen do: astronaut]")
+    with pytest.raises(ValueError, match="unknown operation"):
+        ops.llm_prep("a [gen thme: noir], [gen: x]")
+
+
+def test_llm_directions_without_parts_pass_through():
+    _s, prompt, plan = ops.llm_prep("[gen theme: noir], a cat", "full")
+    assert prompt == "OK?"
+    text, report = ops.llm_apply(plan, "OK")
+    assert text == "a cat" and "[gen theme: …] removed" in report
