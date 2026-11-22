@@ -130,8 +130,11 @@ def resolve(name, files):
     if found:
         shown = ", ".join(sorted(insert_name(f, files) for f in found))
         raise LookupError(f'"{name}" fits several LoRAs: {shown}. Write the folder too.')
-    near = difflib.get_close_matches(_stem(name), [_stem(f) for f in files], n=3, cutoff=0.6)
-    hint = f" Did you mean {', '.join(near)}?" if near else ""
+    # compare like with like (a bare name against bare names), suggest what autocomplete would write
+    key = _stem(name)
+    by = {(_stem(f) if "/" in key else _base(f)): f for f in files}
+    near = difflib.get_close_matches(key, list(by), n=3, cutoff=0.6)
+    hint = f" Did you mean {', '.join(insert_name(by[k], files) for k in near)}?" if near else ""
     raise LookupError(f'there\'s no LoRA "{name}" in the loras folder.{hint}')
 
 

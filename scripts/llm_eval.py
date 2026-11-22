@@ -9,6 +9,11 @@ Standard library only: run it on any machine that reaches the ComfyUI server.
     python scripts/llm_eval.py --seeds 1-5 --only theme,angle
     python scripts/llm_eval.py --clip qwen_3_4b.safetensors --clip-type lumina2
     python scripts/llm_eval.py --cases my_cases.json   # [{"name", "text", "scope"?, "default_operation"?, "context"?}]
+    python scripts/llm_eval.py --local-prep            # Prep/Apply from this checkout: tune prompts without a restart
+
+--local-prep runs AB LLM Prep and Apply here (ops.py of this checkout) and sends only the
+finished prompt to the server's Generate Text, so a prompt change is tested without
+deploying it. It needs pyyaml (requirements.txt); the server only needs AB Wildcard.
 
 Flags in the report are hints for reading, not verdicts:
   fallback   Apply kept the original (no usable answer)
@@ -16,7 +21,7 @@ Flags in the report are hints for reading, not verdicts:
   bleed      the answer took words from the theme that the original didn't have
   weights    the original had (word:1.2) or <…> syntax, the result lost it (a weight on part of a
              part is dropped by design; the report says so, and the flag shows it)
-  sentence   the answer reads like a sentence (is/are/was…) or adds many commas
+  sentence   the answer reads like a sentence (is/are/was…, which, where) or a comma list lost items
   long       a short answer has more words than asked for
 Plan: docs/plan-llm-ops.md
 """
@@ -27,6 +32,7 @@ import os
 import re
 import sys
 import time
+import types
 import urllib.error
 import urllib.request
 import uuid
@@ -62,22 +68,31 @@ CASES = [
      "text": "a cozy cabin, snowy forest, dusk, warm window light, film grain"},
 ]
 
-def graph(case, seed, args):
-    """API-format graph for one run. PreviewAny nodes 11-15 carry what the report needs."""
-    gen = {
-        "clip": ["3", 0], "system_prompt": ["2", 0], "prompt": ["2", 1], "max_length": args.max_length,
+def gen_inputs(seed, args, system_prompt, prompt):
+    """TextGenerateV2 inputs; system_prompt/prompt are links or literal strings."""
+    return {
+        "clip": ["3", 0], "system_prompt": system_prompt, "prompt": prompt, "max_length": args.max_length,
         "sampling_mode": "on", "sampling_mode.temperature": args.temperature, "sampling_mode.top_k": 64,
         "sampling_mode.top_p": 0.95, "sampling_mode.min_p": 0.05, "sampling_mode.repetition_penalty": 1.05,
         "sampling_mode.presence_penalty": 0.0, "sampling_mode.seed": seed,
         "thinking": False, "use_default_template": True, "mtp": "auto",
     }
+
+
+def clip_node(args):
+    return {"class_type": "CLIPLoader", "inputs": {"clip_name": args.clip, "type": args.clip_type,
+                                                   "device": "default"}}
+
+
+def graph(case, seed, args):
+    """API-format graph for one run. PreviewAny nodes 11-15 carry what the report needs."""
+    gen = gen_inputs(seed, args, ["2", 0], ["2", 1])
     prep = {"text": ["1", 0], "scope": case.get("scope", "full"),
             "default_operation": case.get("default_operation", "none")}
     g = {
         "1": {"class_type": "ABWildcardNode", "inputs": {"text": case["text"], "seed": seed}},
         "2": {"class_type": "ABLLMPrep", "inputs": prep},
-        "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": args.clip, "type": args.clip_type,
-                                                      "device": "default"}},
+        "3": clip_node(args),
         "4": {"class_type": "TextGenerateV2", "inputs": gen},
         "5": {"class_type": "ABLLMApply", "inputs": {"plan": ["2", 2], "generated_text": ["4", 0]}},
         "11": {"class_type": "PreviewAny", "inputs": {"source": ["1", 0]}},
@@ -134,7 +149,9 @@ def flags(part, theme_words):
     weights = re.findall(r":\s*(-?[\d.]+)\s*\)", old)
     if any(t not in new for t in tags) or any(not re.search(rf":\s*{re.escape(w)}\s*\)", new) for w in weights):
         out.append("weights")
-    if new.count(",") > old.count(",") + 2 or re.search(r"\b(is|are|was|were)\b", new):
+    # expand is asked for a comma list now, so more commas are fine; fewer items in a list are not
+    list_lost = old.count(",") >= 2 and new.count(",") < old.count(",")
+    if re.search(r"\b(is|are|was|were|which|where)\b", new) or list_lost:
         out.append("sentence")
     if part["op"] == "short" and len(words(new)) > max(1, len(words(old)) // 2):
         out.append("long")
@@ -180,7 +197,7 @@ def wait(server, prompt_id, timeout):
     return None
 
 
-def read_outputs(h):
+def read_outputs(h, nodes=OUT_NODES):
     status = h.get("status", {})
     if status.get("status_str") == "error":
         for kind, msg in status.get("messages", []):
@@ -188,7 +205,53 @@ def read_outputs(h):
                 return None, f"{msg.get('node_type')}: {msg.get('exception_message', '').strip()}"
         return None, "execution failed"
     outs = h.get("outputs", {})
-    return {k: "".join(outs.get(n, {}).get("text", [""])) for k, n in OUT_NODES.items()}, None
+    return {k: "".join(outs.get(n, {}).get("text", [""])) for k, n in nodes.items()}, None
+
+
+def run_graph(args, client_id, g, node):
+    """Queue g, wait for it, return (text of PreviewAny `node`, error)."""
+    pid, err = queue(args.server, g, client_id)
+    if err:
+        return None, err
+    h = wait(args.server, pid, args.timeout)
+    if not h:
+        return None, f"no result after {args.timeout} s"
+    outs, err = read_outputs(h, {"out": node})
+    return (outs["out"] if outs else None), err
+
+
+# --- --local-prep: Prep and Apply from this checkout ------------------------------------------
+
+def local_ops():
+    """ops.py of this checkout, importable outside ComfyUI (the test stubs plus aiohttp)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path[:0] = [root, os.path.join(root, "tests")]
+    sys.modules.setdefault("aiohttp", types.SimpleNamespace(web=None))  # nodes.py needs it only for routes
+    import conftest  # noqa: F401  stubs server and folder_paths
+    import ops
+    return ops
+
+
+def run_local(case, seed, args, client_id, ops):
+    """Picks from the server's AB Wildcard, Prep and Apply here, generation on the server."""
+    picks, err = run_graph(args, client_id, {
+        "1": {"class_type": "ABWildcardNode", "inputs": {"text": case["text"], "seed": seed}},
+        "11": {"class_type": "PreviewAny", "inputs": {"source": ["1", 0]}}}, "11")
+    if err:
+        return None, err
+    try:
+        system, prompt, plan = ops.llm_prep(picks, case.get("scope", "full"),
+                                            case.get("default_operation", "none"), case.get("context", ""))
+    except ValueError as e:
+        return None, f"ABLLMPrep: {e}"
+    answer, err = run_graph(args, client_id, {
+        "3": clip_node(args),
+        "4": {"class_type": "TextGenerateV2", "inputs": gen_inputs(seed, args, system, prompt)},
+        "13": {"class_type": "PreviewAny", "inputs": {"source": ["4", 0]}}}, "13")
+    if err:
+        return None, err
+    text, report = ops.llm_apply(plan, answer)
+    return {"picks": picks, "prompt": prompt, "answer": answer, "text": text, "report": report}, None
 
 
 # --- report ---------------------------------------------------------------------------------
@@ -246,6 +309,8 @@ def main(argv=None):
     ap.add_argument("--out", help="Markdown report path (default: llm-eval-<time>.md)")
     ap.add_argument("--show-prompt", action="store_true", help="include Prep's prompt and the raw answer")
     ap.add_argument("--timeout", type=int, default=600, help="seconds per run")
+    ap.add_argument("--local-prep", action="store_true",
+                    help="run Prep and Apply from this checkout, only generation on the server")
     args = ap.parse_args(argv)
 
     cases = json.load(open(args.cases, encoding="utf8")) if args.cases else CASES
@@ -255,26 +320,34 @@ def main(argv=None):
     if not cases:
         sys.exit("no cases to run")
     try:
-        call(args.server, "/object_info/ABLLMPrep")
+        call(args.server, "/object_info/ABWildcardNode" if args.local_prep else "/object_info/ABLLMPrep")
     except (urllib.error.URLError, OSError) as e:
         sys.exit(f"can't reach ComfyUI at {args.server}: {e}")
+    ops = local_ops() if args.local_prep else None
 
     started, client_id = datetime.datetime.now(), str(uuid.uuid4())
     jobs = []
     for case in cases:  # queue everything first: the encoder stays loaded between runs
         for seed in fmt_seeds(args.seeds):
+            if ops:  # each run needs the picks before Prep: one at a time
+                jobs.append({"case": case["name"], "seed": seed, "_case": case})
+                continue
             pid, err = queue(args.server, graph(case, seed, args), client_id)
             jobs.append({"case": case["name"], "seed": seed, "id": pid, "error": err})
-    print(f"queued {sum(bool(j['id']) for j in jobs)} of {len(jobs)} runs", file=sys.stderr)
+    if not ops:
+        print(f"queued {sum(bool(j['id']) for j in jobs)} of {len(jobs)} runs", file=sys.stderr)
 
     for j in jobs:
-        if j["id"]:
+        case, outs = j.pop("_case", None), None
+        if case:
+            outs, j["error"] = run_local(case, j["seed"], args, client_id, ops)
+        elif j["id"]:
             h = wait(args.server, j["id"], args.timeout)
             outs, err = read_outputs(h) if h else (None, f"no result after {args.timeout} s")
             j["error"] = err
-            if outs:
-                tw = theme_words(outs["picks"])
-                j.update(outs, parts=[dict(p, flags=flags(p, tw)) for p in parse_report(outs["report"])])
+        if outs:
+            tw = theme_words(outs["picks"])
+            j.update(outs, parts=[dict(p, flags=flags(p, tw)) for p in parse_report(outs["report"])])
         mark = "ERROR " + j["error"] if j.get("error") else " · ".join(
             f"{p['n']} {' '.join(p['flags']) or 'ok'}" for p in j.get("parts", []))
         print(f"{j['case']:>14} seed {j['seed']}: {mark}", file=sys.stderr)

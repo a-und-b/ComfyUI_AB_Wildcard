@@ -1,6 +1,14 @@
 # Plan: LoRAs from the prompt (AB LoRA Loader)
 
-Status: built on `claude/nice-newton-2b8fs8`, not released.
+Status: merged (PR a-und-b/ComfyUI_AB_Wildcard#10), not released yet.
+Checked live on dd-machine (2026-11-22, ComfyUI 0.46.2, juggernautXL +
+`SDXL/Standard/princess_xl_v2`, same seed): with vs without the LoRA differ
+clearly (mean pixel diff 38/255); `<LORA:sdxl/standard/Princess_XL_v2.safetensors:1>`
+gives the pixel-identical image to `<lora:princess_xl_v2:1>`; a missing name
+stops with a suggestion, a name in two folders lists both. Found there and
+fixed: `if_missing` had no default, so API-format graphs without it failed
+validation; "Did you mean" showed the lower-cased path instead of the name
+autocomplete would write.
 
 ## Goal
 

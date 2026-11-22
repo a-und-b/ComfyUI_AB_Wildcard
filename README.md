@@ -155,10 +155,10 @@ AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generat
 | Marker | Guides every part toward |
 |--------|--------------------------|
 | `[gen theme: dark fairy tale, muted colors]` | a theme or style |
-| `[gen angle: low angle, 24mm lens]` | a camera position: parts are written as seen from there |
+| `[gen angle: low angle, 24mm lens]` | a camera position: parts are written as seen from there, and the camera text is added to the end of the finished prompt as it is |
 | `[gen avoid: modern objects]` | leaving things out |
 
-Pick them with wildcards like anything else: `$cam = {low angle|bird's eye view}`, then `[gen angle: $cam]` for the LLM and `$cam` in the prompt if the image model should get it too.
+Pick them with wildcards like anything else: `$cam = {low angle|bird's eye view}`, then `[gen angle: $cam]`.
 
 **Weights and LoRA tags.** The LLM never sees them, so it can't lose them:
 
@@ -520,7 +520,10 @@ node tests/syntax.test.mjs            # tokenizer and diagnostics (plain node, n
 ```bash
 python scripts/llm_eval.py --server http://127.0.0.1:8188 --seeds 1-3 --show-prompt
 python scripts/llm_eval.py --only theme,angle --clip qwen_3_4b.safetensors --clip-type lumina2
+python scripts/llm_eval.py --local-prep --server http://my-gpu-box:8188   # prompts from this checkout, no restart
 ```
+
+`--local-prep` runs Prep and Apply from your checkout and sends only the finished prompt to the server's Generate Text, so a change to the prompt texts in `ops.py` is tested without deploying it (needs `pyyaml`).
 
 ---
 
