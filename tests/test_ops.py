@@ -200,3 +200,96 @@ def test_llm_apply_splices_and_falls_back_per_slot():
 def test_llm_apply_whole_text():
     _s, _p, plan = ops.llm_prep("a big red ball on a table", "full", "short")
     assert ops.llm_apply(plan, "1: red ball.")[0] == "red ball"
+
+
+def test_llm_prep_task_echo_is_not_an_answer():
+    # a model that repeats the task list first must not get "Say … differently" spliced in
+    _s, prompt, plan = ops.llm_prep("a knight, [gen spin: red dress]", "full")
+    echo = [ln for ln in prompt.splitlines() if ln.startswith("Task 1:")]
+    assert echo
+    text, _r = ops.llm_apply(plan, echo[0] + "\n1: crimson gown")
+    assert text == "a knight, crimson gown"
+
+
+def test_llm_prep_whole_text_is_not_sent_twice():
+    _s, prompt, _p = ops.llm_prep("a cozy cabin at dusk", "full", "expand")
+    assert prompt.count("a cozy cabin at dusk") == 1
+
+
+def test_llm_fit_names_its_reference_and_warns_without_one():
+    _s, prompt, plan = ops.llm_prep("[gen fit: neon street]", "input", context="medieval village")
+    assert "clashes with the context" in prompt and "notes" not in plan
+    _s, prompt, plan = ops.llm_prep("a knight, [gen fit: neon street]", "full")
+    assert "clashes with the rest of the prompt" in prompt and "notes" not in plan
+    _s, _p, plan = ops.llm_prep("a knight, [gen fit: neon street]", "none")
+    _t, report = ops.llm_apply(plan, "1: old town lane")
+    assert report.splitlines()[0] == "1 fit: nothing to fit it to (scope none)"
+    _s, _p, plan = ops.llm_prep("a neon street", "full", "fit")
+    assert "whole prompt" in ops.llm_apply(plan, "1: x")[1]
+
+
+@pytest.mark.parametrize("text, clean", [
+    ("a cat, [gen theme: noir], in rain", "a cat, in rain"),
+    ("[gen theme: noir], a cat", "a cat"),
+    ("a cat, [gen angle: low angle]", "a cat"),
+    ("[gen theme: noir]\na cat", "a cat"),
+    ("a cat\n[gen theme: noir]", "a cat"),
+    ("a cat [gen avoid: text] in rain", "a cat in rain"),
+    ("a cat [gen theme: noir]", "a cat"),
+])
+def test_llm_directions_leave_the_output(text, clean):
+    assert ops.llm_directions(text)[0] == clean
+
+
+def test_llm_directions_and_hints_reach_every_task():
+    text = ("[gen theme: dark fairy tale]\n[gen angle: low angle]\n[gen theme: muted colors]\n"
+            "a knight, [gen spin (more gothic): red dress], [gen short: (gold:1.2) crown with jewels]")
+    _s, prompt, plan = ops.llm_prep(text, "full")
+    assert plan["text"].startswith("a knight") and "theme" not in prompt.split("Direction")[0]
+    assert "- Theme: dark fairy tale; muted colors\n- Camera: low angle" in prompt
+    task1, task2 = [ln for ln in prompt.splitlines() if ln.startswith("Task ")]
+    assert task1.endswith("Also: more gothic. Follow the direction above.")
+    assert '"gold crown with jewels"' in task2 and task2.endswith("Follow the direction above.")
+    assert [s["hint"] for s in plan["slots"]] == ["more gothic", ""]
+    assert ops.llm_apply(plan, "1: black lace gown\n2: crown")[0] == "a knight, black lace gown, crown"
+
+
+def test_llm_do_needs_an_instruction():
+    _s, prompt, _p = ops.llm_prep("a [gen do (a 1920s version, max 6 words): astronaut]", "none")
+    assert 'Rewrite "astronaut" as follows: a 1920s version, max 6 words.' in prompt
+    with pytest.raises(ValueError, match="needs an instruction"):
+        ops.llm_prep("a [gen do: astronaut]")
+    with pytest.raises(ValueError, match="unknown operation"):
+        ops.llm_prep("a [gen thme: noir], [gen: x]")
+
+
+def test_llm_directions_without_parts_pass_through():
+    _s, prompt, plan = ops.llm_prep("[gen theme: noir], a cat", "full")
+    assert prompt == "OK?"
+    text, report = ops.llm_apply(plan, "OK")
+    assert text == "a cat" and "[gen theme: …] removed" in report
+
+
+def test_llm_weights_and_tags_survive_the_llm():
+    text = ("a queen, ([gen spin: red silk dress]:1.3), [gen spin: (velvet cape:1.2)], "
+            "[gen expand: (gold:1.2) crown, <lora:detail:0.6>]")
+    _s, prompt, plan = ops.llm_prep(text, "full")
+    assert "a queen, ([1: red silk dress]:1.3), [2: velvet cape], [3: gold crown]" in prompt
+    assert "lora" not in prompt and ":1.2" not in prompt
+    out, report = ops.llm_apply(plan, "1: crimson satin gown\n2: plush velvet mantle\n3: ornate gold crown")
+    assert out == "a queen, (crimson satin gown:1.3), (plush velvet mantle:1.2), ornate gold crown <lora:detail:0.6>"
+    assert "weight (gold:1.2) dropped" in report.splitlines()[-1]
+    out, report = ops.llm_apply(plan, "")  # fallback keeps the part exactly as written
+    assert out == "a queen, (red silk dress:1.3), (velvet cape:1.2), (gold:1.2) crown, <lora:detail:0.6>"
+    assert "dropped" not in report
+
+
+def test_llm_whole_text_keeps_its_tags():
+    _s, prompt, plan = ops.llm_prep("<lora:style:0.8> a cabin, (snow:1.1), dusk", "full", "short")
+    assert '"a cabin, snow, dusk"' in prompt
+    assert ops.llm_apply(plan, "1: snowy cabin")[0] == "snowy cabin <lora:style:0.8>"
+
+
+def test_llm_a_part_with_only_a_tag_is_refused():
+    with pytest.raises(ValueError, match="nothing left to rewrite"):
+        ops.llm_prep("a cat, [gen spin: <lora:x:1>]")

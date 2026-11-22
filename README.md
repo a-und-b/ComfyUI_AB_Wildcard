@@ -139,6 +139,30 @@ AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generat
 | `[gen expand: castle]` | more detail |
 | `[gen short: …]` | shorter, keeps the core |
 | `[gen fit: {viking\|pirate}]` | adapts it to the rest of the prompt, keeps its core |
+| `[gen do (a 1920s version): astronaut]` | follows your own instruction |
+
+**Hints.** Any part takes a hint in brackets before the colon: `[gen expand (focus on light and weather): castle]`, `[gen spin (more gothic): red silk dress]`. No `:` inside the hint.
+
+**Directions for every part.** These markers are not rewritten themselves; every part follows them, and they are removed from the finished prompt:
+
+| Marker | Guides every part toward |
+|--------|--------------------------|
+| `[gen theme: dark fairy tale, muted colors]` | a theme or style |
+| `[gen angle: low angle, 24mm lens]` | a camera position: parts are written as seen from there |
+| `[gen avoid: modern objects]` | leaving things out |
+
+Pick them with wildcards like anything else: `$cam = {low angle|bird's eye view}`, then `[gen angle: $cam]` for the LLM and `$cam` in the prompt if the image model should get it too.
+
+**Weights and LoRA tags.** The LLM never sees them, so it can't lose them:
+
+| You write | The LLM gets | Result |
+|-----------|--------------|--------|
+| `([gen spin: red silk dress]:1.3)` | `red silk dress` | `(crimson satin gown:1.3)` — the weight is outside the marker, Apply never touches it |
+| `[gen spin: (red silk dress:1.3)]` | `red silk dress` | `(crimson satin gown:1.3)` — a weight on the whole part wraps the answer again |
+| `[gen expand: castle, <lora:detail:0.6>]` | `castle` | `towering stone castle … <lora:detail:0.6>` — tags go back behind the answer |
+| `[gen expand: (gold:1.2) crown]` | `gold crown` | `ornate gold crown with rubies` — a weight on part of the text can't follow a rewrite: it is dropped, and the report says so |
+
+So weight a whole part, or put the weight around the marker. When a part keeps its original text (fallback), everything stays exactly as you wrote it.
 
 Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives as `[gen fit: viking]`: `fit` smooths a random pick without touching anything else. `#` and `//` inside a marker are removed as comments, like everywhere in AB Wildcard.
 
@@ -161,6 +185,8 @@ Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives
 | `qwen_3_8b_fp8mixed` (flux2) | can't generate (`'NoneType' object has no attribute 'device'`) |
 
 The CLIP type only matters for loading; the same weights give the same text. Keep **thinking** off; `max_length` 512 is enough for a handful of parts.
+
+**Building workflows with an LLM agent** (e.g. through a ComfyUI MCP server)? [`docs/llm-agents.md`](docs/llm-agents.md) has every node's API names, the syntax, discovery endpoints and ready-to-queue recipes.
 
 **One node instead of three.** The subgraph blueprint **AB LLM Edit** (node library → subgraphs) bundles Prep, Generate Text and Apply: connect `text` and your `clip`, read `text` and `report`.
 
@@ -193,7 +219,7 @@ The text field colours the syntax as you type and marks mistakes.
 
 - **Colours** — comments, variables (as green chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]`, `[clean:]` and `[gen …]` markers.
 - **Red wavy underline** — an error: an unclosed `{`, `[if`, `<[`, `[clean:`, `[shuffle:` or `[gen`, an unmatched `}`, or `[if` without `:`.
-- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), `{@…}` inside `{@…}` (not counted evenly), or an unknown `[gen …]` operation such as `[gen spinn: …]` (AB LLM Prep would stop the run).
+- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), `{@…}` inside `{@…}` (not counted evenly), an unknown `[gen …]` operation such as `[gen spinn: …]`, or `[gen do: …]` without an instruction (AB LLM Prep would stop the run on either).
 - **Blue dotted underline** — a hint: a `//` or `#` inside a block or URL starts a comment.
 - A strip at the bottom of the field gives the counts and the message at the caret.
 
@@ -438,6 +464,13 @@ __examples/lighting__,
 pip install -r requirements-dev.txt   # pytest (runtime needs only pyyaml)
 pytest
 node tests/syntax.test.mjs            # tokenizer and diagnostics (plain node, no install)
+```
+
+**LLM edits on a live ComfyUI.** `scripts/llm_eval.py` queues a set of `[gen …]` prompts (baseline, theme, angle, avoid, hints, do, weights …) once per seed through `/prompt` and writes a Markdown report with each part's old and new text and flags such as `fallback`, `bleed` (theme words leaking in) or `weights` (lost `(word:1.2)`). Standard library only:
+
+```bash
+python scripts/llm_eval.py --server http://127.0.0.1:8188 --seeds 1-3 --show-prompt
+python scripts/llm_eval.py --only theme,angle --clip qwen_3_4b.safetensors --clip-type lumina2
 ```
 
 ---
