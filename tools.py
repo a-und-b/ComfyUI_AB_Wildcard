@@ -1,14 +1,16 @@
-"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply (V3 node API).
+"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply,
+LoRA loader (V3 node API).
 
-Thin wrappers: the logic lives in ops.py, where pytest can reach it.
-Plans: docs/plan-wildcard-io.md, docs/plan-llm-ops.md
+Thin wrappers: the logic lives in ops.py and loras.py, where pytest can reach it.
+Plans: docs/plan-wildcard-io.md, docs/plan-llm-ops.md, docs/plan-lora-loader.md
 """
+import logging
 import os
 
 import folder_paths
 from comfy_api.latest import io
 
-from . import ops
+from . import loras, ops
 from .nodes import TagLoader, get_all_wildcard_paths
 
 CATEGORY = "AB Utils"
@@ -285,3 +287,90 @@ class ABLLMApply(io.ComfyNode):
     @classmethod
     def execute(cls, plan, generated_text):
         return io.NodeOutput(*ops.llm_apply(plan, generated_text))
+
+
+class ABLoraLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABLoraLoader",
+            display_name="AB LoRA Loader",
+            category=CATEGORY,
+            description="Loads the LoRAs named in the prompt as <lora:name:strength> and outputs the "
+                        "prompt without them. Put it between AB Wildcard and CLIP Text Encode.",
+            search_aliases=["lora", "lora tag", "load lora", "lora from prompt", "prompt lora", "<lora:",
+                            "a1111 lora", "lora loader"],
+            inputs=[
+                io.Model.Input("model"),
+                io.Clip.Input("clip", optional=True,
+                              tooltip="Optional: without it, LoRAs change only the model"),
+                io.String.Input("text", multiline=True, tooltip=(
+                    "The prompt, usually from AB Wildcard. <lora:name> = strength 1 · "
+                    "<lora:name:0.8> = model and clip 0.8 · <lora:name:0.8:0.5> = model 0.8, clip 0.5")),
+                io.Combo.Input("if_missing", display_name="if a LoRA is missing", options=loras.MISSING_MODES,
+                               advanced=True, tooltip=(
+                                   "stop with error: the run stops and names the LoRA · "
+                                   "skip it: the tag is removed, the run goes on, the console warns")),
+            ],
+            outputs=[
+                io.Model.Output(display_name="model"),
+                io.Clip.Output(display_name="clip"),
+                io.String.Output(display_name="text", tooltip="The prompt without <lora:…> tags: to CLIP Text Encode"),
+                io.String.Output(display_name="loras", tooltip="Each applied LoRA with its strengths, one per line"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, text, if_missing=loras.MISSING_STOP, clip=None):
+        clean, tags = loras.extract(text or "")
+        files = folder_paths.get_filename_list("loras")
+        picks = []
+        for t in tags:
+            try:
+                picks.append((loras.resolve(t.name, files), t.model, t.clip))
+            except LookupError as e:
+                if if_missing == loras.MISSING_STOP:
+                    raise ValueError(f"AB LoRA Loader: {e}") from None
+                logging.warning(f"[AB LoRA Loader] skipped {t.raw}: {e}")
+
+        applied, cache = [], {}
+        for f, strength_model, strength_clip in loras.merge(picks):
+            if clip is None:
+                strength_clip = 0.0
+                if not strength_model:
+                    continue
+            path = folder_paths.get_full_path_or_raise("loras", f)
+            lora, meta = _load_lora_file(path)
+            cache[path] = (lora, meta)
+            model, clip = _apply_lora(model, clip, lora, meta, strength_model, strength_clip)
+            applied.append((loras.insert_name(f, files), strength_model, strength_clip if clip is not None else None))
+        _LORA_CACHE.clear()
+        _LORA_CACHE.update(cache)  # keep only what this run used
+        return io.NodeOutput(model, clip, clean, loras.describe(applied))
+
+
+_LORA_CACHE = {}  # path -> (state dict, metadata), the LoRAs of the last run
+
+
+def _load_lora_file(path):
+    hit = _LORA_CACHE.get(path)
+    if hit is not None:
+        return hit
+    import comfy.utils
+    if _accepts(comfy.utils.load_torch_file, "return_metadata"):
+        return comfy.utils.load_torch_file(path, safe_load=True, return_metadata=True)
+    return comfy.utils.load_torch_file(path, safe_load=True), None  # older ComfyUI
+
+
+def _apply_lora(model, clip, lora, meta, strength_model, strength_clip):
+    import comfy.sd
+    extra = {"lora_metadata": meta} if _accepts(comfy.sd.load_lora_for_models, "lora_metadata") else {}
+    return comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip, **extra)
+
+
+def _accepts(fn, arg):
+    import inspect
+    try:
+        return arg in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False

@@ -17,14 +17,14 @@ const CSS = `
 .ab-hl-status .ab-error { color: var(--ab-hl-error); } .ab-hl-status .ab-warning { color: var(--ab-hl-warning); }
 :root { --ab-hl-text: var(--input-text, #d8dee9);
   --ab-hl-comment: #7d8590; --ab-hl-var: #7ee2a8; --ab-hl-var-bg: rgba(46,160,100,.28); --ab-hl-assign: #8b949e;
-  --ab-hl-wild: #5cc8ff; --ab-hl-seq: #3fe0c5; --ab-hl-tag: #c297ff; --ab-hl-brace: #ffcb6b; --ab-hl-mode: #ff7ad9;
+  --ab-hl-wild: #5cc8ff; --ab-hl-seq: #3fe0c5; --ab-hl-tag: #c297ff; --ab-hl-lora: #ffb86c; --ab-hl-lora-bg: rgba(255,158,100,.18); --ab-hl-brace: #ffcb6b; --ab-hl-mode: #ff7ad9;
   --ab-hl-num: #ffa657; --ab-hl-kw: #ff8fa3;
   --ab-hl-error: #ff5c5c; --ab-hl-warning: #f0b429; --ab-hl-info: #5cc8ff;
   --ab-hl-status-bg: rgba(20,22,28,.92); --ab-hl-status-line: rgba(255,255,255,.18);
   --ab-hl-match: rgba(255,203,107,.30); --ab-hl-match-cur: rgba(255,150,40,.65); --ab-hl-match-line: #ffcb6b; }
 :root.ab-hl-light { --ab-hl-text: var(--input-text, #24292f);
   --ab-hl-comment: #6e7781; --ab-hl-var: #116329; --ab-hl-var-bg: rgba(46,160,100,.18); --ab-hl-assign: #57606a;
-  --ab-hl-wild: #0550ae; --ab-hl-seq: #0a7f6d; --ab-hl-tag: #6639ba; --ab-hl-brace: #8a5a00; --ab-hl-mode: #b0198a;
+  --ab-hl-wild: #0550ae; --ab-hl-seq: #0a7f6d; --ab-hl-tag: #6639ba; --ab-hl-lora: #9a4a00; --ab-hl-lora-bg: rgba(255,140,0,.14); --ab-hl-brace: #8a5a00; --ab-hl-mode: #b0198a;
   --ab-hl-num: #a04100; --ab-hl-kw: #b3263e;
   --ab-hl-error: #cf222e; --ab-hl-warning: #9a6700; --ab-hl-info: #0550ae;
   --ab-hl-status-bg: rgba(255,255,255,.95); --ab-hl-status-line: rgba(0,0,0,.2);
@@ -34,6 +34,7 @@ const CSS = `
 .ab-t-assign { color: var(--ab-hl-assign); }
 .ab-t-wildcard { color: var(--ab-hl-wild); } .ab-t-wildcardSeq { color: var(--ab-hl-seq); }
 .ab-t-angle, .ab-t-tagDelim, .ab-t-tagOp { color: var(--ab-hl-tag); }
+.ab-t-lora { color: var(--ab-hl-lora); background: var(--ab-hl-lora-bg); border-radius: 3px; }
 .ab-t-brace, .ab-t-pipe { color: var(--ab-hl-brace); }
 .ab-t-seqMode { color: var(--ab-hl-mode); }
 .ab-t-count, .ab-t-prob, .ab-t-weight { color: var(--ab-hl-num); }

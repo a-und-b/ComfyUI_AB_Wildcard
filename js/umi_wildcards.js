@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { installHighlighter } from "./ab_highlight.js";
-import { completionContext, completionText, variableNames, MODIFIERS } from "./ab_syntax.js";
+import { completionContext, completionText, variableNames, loraInsertNames, MODIFIERS } from "./ab_syntax.js";
 
 // =============================================================================
 // PART 1: AUTOCOMPLETE LOGIC (Enhanced with Fuzzy Search)
@@ -267,6 +267,7 @@ const HELP_HTML = `
                     <tr><td><span class="umi-code">{a|{b|c}}</span></td><td><strong>Nesting:</strong> Unlimited depth.</td></tr>
                     <tr><td><span class="umi-code">__*__</span></td><td><strong>Wildcard:</strong> Pick from ANY file.</td></tr>
                     <tr><td><span class="umi-code">&lt;[Tag]&gt;</span></td><td><strong>Tag Aggregation:</strong> Pick from any entry with this tag.</td></tr>
+                    <tr><td><span class="umi-code">&lt;lora:name:0.8&gt;</span></td><td><strong>LoRA:</strong> passes through; <strong>AB LoRA Loader</strong> loads it and removes the tag.</td></tr>
                 </table>
             </div>
             <div>
@@ -382,6 +383,8 @@ app.registerExtension({
     async setup() {
         this.wildcards = [];
         this.tags = [];
+        this.loras = [];        // relative file paths in the loras folder
+        this.loraNames = [];    // what autocomplete inserts for them
 
         // Define a function we can call later to refresh the lists
         this.fetchWildcards = async () => {
@@ -397,6 +400,8 @@ app.registerExtension({
                         this.wildcards = data.wildcards || [];
                         this.tags = data.tags || [];
                         this.globals = data.globals || [];
+                        this.loras = data.loras || [];
+                        this.loraNames = [...new Set(loraInsertNames(this.loras))];
                     }
                 } else {
                     this.wildcards = [];
@@ -440,9 +445,21 @@ app.registerExtension({
         // Syntax highlighting + diagnostics overlay (js/ab_highlight.js)
         this.highlighter = installHighlighter({
             resolveTextarea,
-            getKnown: () => ({ wildcards: ext.wildcards, tags: ext.tags, globals: ext.globals }),
+            getKnown: () => ({ wildcards: ext.wildcards, tags: ext.tags, globals: ext.globals, loras: ext.loras }),
             search: async (q) => (await (await fetch("/ab_wildcard/search?q=" + encodeURIComponent(q))).json()).results,
         });
+
+        // Typing ">" right before the ">" of a <lora:…> tag steps over it, so after
+        // autocomplete selected the strength you type "0.7>" and go on.
+        document.addEventListener("keydown", (e) => {
+            if (e.key !== ">" || e.ctrlKey || e.metaKey || e.altKey) return;
+            const ta = resolveTextarea(e.target);
+            if (!ta || ta.selectionStart !== ta.selectionEnd) return;
+            const pos = ta.selectionStart;
+            if (ta.value[pos] !== ">" || !/<(?:lora|lyco):[^<>\n]*$/i.test(ta.value.slice(0, pos))) return;
+            e.preventDefault();
+            ta.setSelectionRange(pos + 1, pos + 1);
+        }, true);
 
         // Navigation while the popup is open (capture phase to pre-empt defaults)
         document.addEventListener("keydown", (e) => {
@@ -467,6 +484,7 @@ app.registerExtension({
             if (!ctx) { ext.popup.hide(); return; }
 
             const source = ctx.kind === "tag" ? (ext.tags || [])
+                : ctx.kind === "lora" ? (ext.loraNames || [])
                 : ctx.kind === "variable" ? variableNames(text, ext.globals)
                 : ctx.kind === "modifier" ? MODIFIERS
                 : (ext.wildcards || []);
@@ -484,7 +502,12 @@ app.registerExtension({
                 // so dispatch it. Both legacy and Vue (v-model) listen to "input".
                 inputEl.dispatchEvent(new Event("input", { bubbles: true }));
                 const newCursorPos = (prefix + completion).length;
-                inputEl.setSelectionRange(newCursorPos, newCursorPos);
+                if (ctx.kind === "lora") {
+                    // Select the strength ("1" before ">") so typing replaces it.
+                    inputEl.setSelectionRange(newCursorPos - 2, newCursorPos - 1);
+                } else {
+                    inputEl.setSelectionRange(newCursorPos, newCursorPos);
+                }
                 inputEl.focus();
             });
         }, true);
@@ -618,10 +641,19 @@ app.registerExtension({
             }, { values: [TAG_PH] });
             tagWidget.serialize = false;
 
+            const LORA_PH = "insert…";
+            const loraWidget = self.addWidget("combo", "LoRAs", LORA_PH, (v) => {
+                if (v && v !== LORA_PH) insertToken(`<lora:${v}:1>`);
+                loraWidget.value = LORA_PH;
+                app.canvas?.setDirty?.(true, true);
+            }, { values: [LORA_PH] });
+            loraWidget.serialize = false;
+
             // Populate / refresh the picker lists from the extension's fetched data.
             const refreshPickers = () => {
                 wcWidget.options.values = [WC_PH, ...((ext && ext.wildcards) || [])];
                 tagWidget.options.values = [TAG_PH, ...((ext && ext.tags) || [])];
+                loraWidget.options.values = [LORA_PH, ...((ext && ext.loraNames) || []).slice().sort((a, b) => a.localeCompare(b))];
             };
             refreshPickers();
             // Catch the case where the initial fetch finishes after node creation.

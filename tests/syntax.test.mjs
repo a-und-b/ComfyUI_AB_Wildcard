@@ -1,7 +1,8 @@
 // Run: node tests/syntax.test.mjs   (plain assert, no framework)
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { tokenize, completionContext, completionText, variableNames, findMatches, replaceAll } from "../js/ab_syntax.js";
+import { tokenize, completionContext, completionText, variableNames, findMatches, replaceAll,
+  parseLoraSpec, loraMatches, loraInsertNames } from "../js/ab_syntax.js";
 
 const toks = (t) => tokenize(t).tokens.map((k) => `${k.type}:${t.slice(k.start, k.end)}`);
 const errs = (t) => tokenize(t).diagnostics.filter((d) => d.severity === "error").map((d) => `${d.message}@${d.start}`);
@@ -23,7 +24,7 @@ assert.deepEqual(toks("[if $a AND b: x | y]"), ["ifKw:[if", "variable:$a", "ifSe
 assert.deepEqual(toks("[clean: a, ,b]"), ["fn:[clean:", "fn:]"]);
 assert.deepEqual(toks("<[a AND (b OR --c)]>"),
   ["tagDelim:<", "tagDelim:[", "tagOp:AND", "tagOp:(", "tagOp:OR", "tagOp:--", "tagOp:)", "tagDelim:]", "tagDelim:>"]);
-assert.deepEqual(toks("<lora:x:0.8> a < b > c"), ["angle:<lora:x:0.8>"]);
+assert.deepEqual(toks("<lora:x:0.8> a < b > c"), ["lora:<lora:x:0.8>"]);
 assert.deepEqual(toks("{2$$a|b}"), ["brace:{", "count:2$$", "pipe:|", "brace:}"]);
 
 // --- comments (engine cuts at first // or #, __# and <# protected) ---
@@ -60,6 +61,33 @@ assert.deepEqual(diags("__nope__ __1-2$$nada__", known), ['warning:Unknown wildc
 assert.deepEqual(diags("<[blue AND dark]> <lora:x:0.8>", known), []);
 assert.deepEqual(diags("<[blue AND $v OR purple]>", known), ['warning:Unknown tag "purple"']);
 
+// --- LoRA tags ---
+assert.deepEqual(toks("<lora:my style v2:0.8:0.5>, a"), ["lora:<lora:my style v2:0.8:0.5>"]);
+assert.deepEqual(toks("{<lora:a:1>|<LYCO:b>}"), ["brace:{", "lora:<lora:a:1>", "pipe:|", "lora:<LYCO:b>", "brace:}"]);
+assert.deepEqual(toks("<lora:a#1:0.8> # c"), ["lora:<lora:a#1:0.8>", "comment:# c"], "# inside a LoRA tag is no comment");
+assert.deepEqual(parseLoraSpec("x"), { name: "x", model: 1, clip: 1 });
+assert.deepEqual(parseLoraSpec("x:0.8"), { name: "x", model: 0.8, clip: 0.8 });
+assert.deepEqual(parseLoraSpec(" a:b :.5:-1"), { name: "a:b", model: 0.5, clip: -1 });
+assert.deepEqual(parseLoraSpec("0.8"), { name: "0.8", model: 1, clip: 1 });
+assert.equal(parseLoraSpec(" :0.8"), null);
+{
+  const files = ["anime.safetensors", "sdxl/Detail.safetensors", "flux/detail.safetensors", "sub\\win.pt"];
+  assert.deepEqual(loraMatches("ANIME", files), ["anime.safetensors"]);
+  assert.deepEqual(loraMatches("anime.safetensors", files), ["anime.safetensors"]);
+  assert.deepEqual(loraMatches("detail", files), ["sdxl/Detail.safetensors", "flux/detail.safetensors"]);
+  assert.deepEqual(loraMatches("flux/detail", files), ["flux/detail.safetensors"]);
+  assert.deepEqual(loraMatches("sub/win", files), ["sub\\win.pt"]);
+  assert.deepEqual(loraMatches("win", files), ["sub\\win.pt"]);
+  assert.deepEqual(loraMatches("nope", files), []);
+  assert.deepEqual(loraInsertNames(files), ["anime", "sdxl/Detail", "flux/detail", "win"]);
+  const k = { loras: files };
+  assert.deepEqual(diags("<lora:anime:0.8> <lora:flux/detail> <lora:win:1:0.5>", k), []);
+  assert.deepEqual(diags("<lora:animu:0.8>", k), ['warning:Unknown LoRA "animu"']);
+  assert.deepEqual(diags("<lora:detail>", k), ['warning:"detail" fits 2 LoRAs; write the folder too']);
+  assert.deepEqual(diags("<lora::0.8>", k), ["warning:LoRA tag without a name"]);
+  assert.deepEqual(diags("<lora:anything>"), [], "no list from the server, no warning");
+}
+
 // --- invariants on every input: sorted, non-overlapping, in range ---
 function checkShape(t) {
   let prev = 0;
@@ -77,7 +105,11 @@ assert.equal(ctx("x {2$$"), null);
 assert.equal(ctx("$5"), null);
 assert.equal(ctx("<co"), "wildcard:co");
 assert.equal(ctx("a < b"), null);
-assert.equal(ctx("<lora:x"), null);
+assert.equal(ctx("<lora:x"), "lora:x");
+assert.equal(ctx("<LoRA:"), "lora:");
+assert.equal(ctx("<lyco:sub/my st"), "lora:sub/my st");
+assert.equal(ctx("<lora:x:0."), null, "typing the strength closes the popup");
+assert.equal(completionText(completionContext("a <lora:an"), "anime"), "<lora:anime:1>");
 assert.equal(ctx("<[co"), "tag:co");
 assert.equal(ctx("__co"), "wildcard:co");
 assert.equal(ctx("$color.cl"), "modifier:cl");
