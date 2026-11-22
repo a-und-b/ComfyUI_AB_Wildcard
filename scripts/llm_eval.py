@@ -14,7 +14,8 @@ Flags in the report are hints for reading, not verdicts:
   fallback   Apply kept the original (no usable answer)
   same       the answer equals the original
   bleed      the answer took words from the theme that the original didn't have
-  weights    the original had (word:1.2) or <…> syntax, the answer lost it
+  weights    the original had (word:1.2) or <…> syntax, the result lost it (a weight on part of a
+             part is dropped by design; the report says so, and the flag shows it)
   sentence   the answer reads like a sentence (is/are/was…) or adds many commas
   long       a short answer has more words than asked for
 Plan: docs/plan-llm-ops.md
@@ -52,8 +53,11 @@ CASES = [
      "text": "a street scene, [gen do (a 1920s version, max 6 words): {astronaut|cowboy|robot}], film photo"},
     {"name": "fit-fits",
      "text": "a viking warrior on a longship, cold sea, [gen fit: horned iron helmet], realistic"},
+    # weights and tags are kept by code: expect (…:1.3) and (…:1.2) around the answers, the lora behind
+    # part 3, and a "dropped" note for (gold:1.2); a "weights" flag here means code lost something
     {"name": "weights",
-     "text": "a queen, [gen spin: (gold:1.2) crown with rubies], [gen expand: <lora:detail:0.6> throne room]"},
+     "text": "a queen, ([gen spin: red silk dress]:1.3), [gen spin: (velvet cape:1.2)], "
+             "[gen expand: (gold:1.2) crown with rubies, <lora:detail:0.6>]"},
     {"name": "whole-expand", "default_operation": "expand",
      "text": "a cozy cabin, snowy forest, dusk, warm window light, film grain"},
 ]
@@ -96,7 +100,6 @@ OUT_NODES = {"picks": "11", "prompt": "12", "answer": "13", "text": "14", "repor
 _REPLACED = re.compile(r'^(\d+) (\w+): "(.*)" → "(.*)"$')
 _FALLBACK = re.compile(r'^(\d+) (\w+): fallback \((.*)\), kept "(.*)"$')
 _DIRECTION = re.compile(r"\[gen\s+(theme|angle|avoid)\s*:\s*([^\]]*?)\s*\]", re.IGNORECASE)
-_SYNTAX = re.compile(r"\([^()]*:\s*[\d.]+\)|<[^<>]+>")
 _STOP = {"with", "and", "the", "from", "into", "over", "under", "colors", "colour", "colours", "style"}
 
 
@@ -127,7 +130,9 @@ def flags(part, theme_words):
         out.append("same")
     if theme_words & (set(words(new)) - set(words(old))):
         out.append("bleed")
-    if _SYNTAX.search(old) and not all(s in new for s in _SYNTAX.findall(old)):
+    tags = re.findall(r"<[^<>]+>", old)
+    weights = re.findall(r":\s*(-?[\d.]+)\s*\)", old)
+    if any(t not in new for t in tags) or any(not re.search(rf":\s*{re.escape(w)}\s*\)", new) for w in weights):
         out.append("weights")
     if new.count(",") > old.count(",") + 2 or re.search(r"\b(is|are|was|were)\b", new):
         out.append("sentence")

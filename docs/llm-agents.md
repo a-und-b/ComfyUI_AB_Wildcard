@@ -212,6 +212,11 @@ directions are just removed and the text passes through.
   `fit` needs `full` or `input`; otherwise the report says "nothing to fit it to".
 - An unknown operation (`[gen foo: …]`) raises an error in Prep.
 - Don't put `#` or `//` inside a marker (comment stripping).
+- Weights and `<…>` tags never reach the LLM. `([gen spin: x]:1.3)` and
+  `[gen spin: (x:1.3)]` both give `(new text:1.3)`; `<lora:…>` inside a part is
+  put back behind the answer. A weight on *part* of a part (`[gen expand: (gold:1.2) crown]`)
+  is dropped and the report says `weight (gold:1.2) dropped`. A part that is only
+  a tag (`[gen spin: <lora:x:1>]`) raises an error.
 - A part keeps its original text when the answer has no line for it, the line
   is empty, or a `short` answer is longer than the original. Read `report`.
 
@@ -284,6 +289,8 @@ Rules that work with the recommended 9B encoder:
 - **Give limits as numbers**: `max 6 words`.
 - **Avoid negations in hints and themes** (`no people` tends to add people).
   Use `[gen avoid: people]`; it is phrased as a separate rule.
+- **Weights belong to you, not to the local model.** Weight a whole part
+  (`([gen spin: red dress]:1.3)`); never ask the model in a hint to add weights.
 - **Never use `:`, `(`, `)` or `]` inside a hint**, and no `#` or `//` anywhere in a
   marker. A `:` ends the hint; `#` and `//` cut the line.
 - **Content angle vs camera angle:** what to emphasise goes into a hint
@@ -384,6 +391,8 @@ it: small models repeat themselves.
 | Prompt cut off mid-line | `#` or `//` in the text | remove them or rephrase |
 | `AB LLM Prep: unknown operation …` | `[gen foo: …]` | use `[gen: …]`, `spin`, `expand`, `short`, `fit`, `do`, `theme`, `angle`, `avoid` |
 | `AB LLM Prep: … needs an instruction` | `[gen do: …]` without `(…)` | `[gen do (what to do): …]` |
+| `AB LLM Prep: … nothing left to rewrite …` | the part is only a `<…>` tag or a weight | put the tag outside the marker |
+| report: `weight (…) dropped` | a weight on part of a part | weight the whole part: `([gen …]:1.2)` |
 | report: `fallback (no line for it in the answer)` | model ignored the format | raise `max_length`, keep `thinking` off, try the 9B encoder |
 | report: `nothing to fit it to` | `fit` with `scope` `none`, or the part is the whole prompt | use `full` with surrounding text, or `input` with `context` |
 | `'NoneType' object has no attribute 'device'` in Generate Text | encoder file without LM head | use an encoder from §5 |

@@ -153,6 +153,17 @@ AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generat
 
 Pick them with wildcards like anything else: `$cam = {low angle|bird's eye view}`, then `[gen angle: $cam]` for the LLM and `$cam` in the prompt if the image model should get it too.
 
+**Weights and LoRA tags.** The LLM never sees them, so it can't lose them:
+
+| You write | The LLM gets | Result |
+|-----------|--------------|--------|
+| `([gen spin: red silk dress]:1.3)` | `red silk dress` | `(crimson satin gown:1.3)` — the weight is outside the marker, Apply never touches it |
+| `[gen spin: (red silk dress:1.3)]` | `red silk dress` | `(crimson satin gown:1.3)` — a weight on the whole part wraps the answer again |
+| `[gen expand: castle, <lora:detail:0.6>]` | `castle` | `towering stone castle … <lora:detail:0.6>` — tags go back behind the answer |
+| `[gen expand: (gold:1.2) crown]` | `gold crown` | `ornate gold crown with rubies` — a weight on part of the text can't follow a rewrite: it is dropped, and the report says so |
+
+So weight a whole part, or put the weight around the marker. When a part keeps its original text (fallback), everything stays exactly as you wrote it.
+
 Wildcards inside a marker resolve first, so `[gen fit: {viking|pirate}]` arrives as `[gen fit: viking]`: `fit` smooths a random pick without touching anything else. `#` and `//` inside a marker are removed as comments, like everywhere in AB Wildcard.
 
 **AB LLM Prep**

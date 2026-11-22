@@ -249,7 +249,7 @@ def test_llm_directions_and_hints_reach_every_task():
     assert "- Theme: dark fairy tale; muted colors\n- Camera: low angle" in prompt
     task1, task2 = [ln for ln in prompt.splitlines() if ln.startswith("Task ")]
     assert task1.endswith("Also: more gothic. Follow the direction above.")
-    assert '"(gold:1.2) crown with jewels"' in task2 and task2.endswith("Follow the direction above.")
+    assert '"gold crown with jewels"' in task2 and task2.endswith("Follow the direction above.")
     assert [s["hint"] for s in plan["slots"]] == ["more gothic", ""]
     assert ops.llm_apply(plan, "1: black lace gown\n2: crown")[0] == "a knight, black lace gown, crown"
 
@@ -268,3 +268,28 @@ def test_llm_directions_without_parts_pass_through():
     assert prompt == "OK?"
     text, report = ops.llm_apply(plan, "OK")
     assert text == "a cat" and "[gen theme: …] removed" in report
+
+
+def test_llm_weights_and_tags_survive_the_llm():
+    text = ("a queen, ([gen spin: red silk dress]:1.3), [gen spin: (velvet cape:1.2)], "
+            "[gen expand: (gold:1.2) crown, <lora:detail:0.6>]")
+    _s, prompt, plan = ops.llm_prep(text, "full")
+    assert "a queen, ([1: red silk dress]:1.3), [2: velvet cape], [3: gold crown]" in prompt
+    assert "lora" not in prompt and ":1.2" not in prompt
+    out, report = ops.llm_apply(plan, "1: crimson satin gown\n2: plush velvet mantle\n3: ornate gold crown")
+    assert out == "a queen, (crimson satin gown:1.3), (plush velvet mantle:1.2), ornate gold crown <lora:detail:0.6>"
+    assert "weight (gold:1.2) dropped" in report.splitlines()[-1]
+    out, report = ops.llm_apply(plan, "")  # fallback keeps the part exactly as written
+    assert out == "a queen, (red silk dress:1.3), (velvet cape:1.2), (gold:1.2) crown, <lora:detail:0.6>"
+    assert "dropped" not in report
+
+
+def test_llm_whole_text_keeps_its_tags():
+    _s, prompt, plan = ops.llm_prep("<lora:style:0.8> a cabin, (snow:1.1), dusk", "full", "short")
+    assert '"a cabin, snow, dusk"' in prompt
+    assert ops.llm_apply(plan, "1: snowy cabin")[0] == "snowy cabin <lora:style:0.8>"
+
+
+def test_llm_a_part_with_only_a_tag_is_refused():
+    with pytest.raises(ValueError, match="nothing left to rewrite"):
+        ops.llm_prep("a cat, [gen spin: <lora:x:1>]")

@@ -30,3 +30,11 @@ def test_graph_wires_prep_generator_and_apply():
     assert g["4"]["inputs"]["system_prompt"] == ["2", 0] and g["5"]["inputs"]["plan"] == ["2", 2]
     assert g["2"]["inputs"]["context"] == ["6", 0] and g["1"]["inputs"]["seed"] == 3
     assert llm_eval.fmt_seeds("1-3,7") == [1, 2, 3, 7]
+
+
+def test_weights_flag_follows_the_weight_not_the_words():
+    part = lambda old, new: {"op": "spin", "old": old, "new": new, "fallback": False}  # noqa: E731
+    assert "weights" not in llm_eval.flags(part("(velvet cape:1.2)", "(plush mantle:1.2)"), set())
+    assert "weights" not in llm_eval.flags(part("castle, <lora:d:0.6>", "big castle <lora:d:0.6>"), set())
+    assert "weights" in llm_eval.flags(part("(gold:1.2) crown", "ornate crown"), set())
+    assert "weights" in llm_eval.flags(part("castle, <lora:d:0.6>", "big castle"), set())

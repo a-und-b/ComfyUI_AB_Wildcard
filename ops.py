@@ -279,10 +279,44 @@ def llm_slots(text, default_op="none"):
         hint = (m.group(2) or "").strip()
         if op == "do" and not hint:
             raise ValueError(f"AB LLM Prep: {m.group(0)!r} needs an instruction: [gen do (what to do): …].")
-        slots.append({"op": op, "content": m.group(3), "hint": hint, "start": m.start(), "end": m.end()})
+        part = _protect(m.group(3))
+        if not part["content"] and m.group(3).strip():
+            raise ValueError(f"AB LLM Prep: {m.group(0)!r} has nothing left to rewrite once <…> tags and "
+                             f"weights are set aside. Put the tag outside the marker.")
+        slots.append({"op": op, "hint": hint, "start": m.start(), "end": m.end(), **part})
     if not slots and default_op != "none" and (text or "").strip():
-        slots.append({"op": default_op, "content": text.strip(), "hint": "", "start": 0, "end": len(text)})
+        slots.append({"op": default_op, "hint": "", "start": 0, "end": len(text), **_protect(text.strip())})
     return slots
+
+
+_TAG = re.compile(r"<[^<>]+>")  # <lora:name:0.8> and the like
+_WEIGHT = re.compile(r"\(([^()]*?):\s*(-?\d+(?:\.\d+)?)\s*\)")  # (word:1.2)
+
+
+def _protect(content):
+    """What the LLM may see of a part, and what code keeps aside: {content, orig, weight, tags, dropped}.
+
+    <…> tags come out and go back behind the answer. A weight on the whole part
+    wraps the answer again. A weight on a piece of it can't follow a rewrite: it
+    is dropped, and the report says so.
+    """
+    tags = _TAG.findall(content)
+    rest = _TAG.sub("", content)
+    rest = re.sub(r"\s*,\s*(?:,\s*)+", ", ", rest).strip(" \t,")  # "crown, <lora>" -> "crown"
+    weight = ""
+    whole = _WEIGHT.fullmatch(rest)
+    if whole:
+        rest, weight = whole.group(1).strip(), whole.group(2)
+    dropped = [m.group(0) for m in _WEIGHT.finditer(rest)]
+    rest = _WEIGHT.sub(lambda m: m.group(1).strip(), rest)
+    return {"content": rest, "orig": content, "weight": weight, "tags": tags, "dropped": dropped}
+
+
+def _restore(slot, new):
+    """The answer with the part's whole weight and tags put back."""
+    if slot.get("weight"):
+        new = f"({new}:{slot['weight']})"
+    return " ".join([new] + slot.get("tags", []))
 
 
 def _task(i, slot, ref, directed):
@@ -384,13 +418,18 @@ def llm_apply(plan, answer):
             why = "empty answer"
         elif s["op"] == "short" and len(new) > len(s["content"]):
             why = "the short version is longer than the original"
+        orig = s.get("orig", s["content"])
         if why:
-            new = s["content"]
+            new = orig
             report.append(f"{i} {s['op']}: fallback ({why}), kept \"{new}\"")
         else:
             if not s["content"].endswith("."):
                 new = new.rstrip(".")  # "cozy cabin at dusk." would end a comma list with a stray period
-            report.append(f"{i} {s['op']}: \"{s['content']}\" → \"{new}\"")
+            new = _restore(s, new)
+            report.append(f"{i} {s['op']}: \"{orig}\" → \"{new}\"")
+            if s.get("dropped"):
+                report.append(f"{i} {s['op']}: weight {', '.join(s['dropped'])} dropped, it can't follow a "
+                              f"rewrite of part of the text. Weight the whole part: ([gen …]:1.2)")
         out += [text[pos:s["start"]], new]
         pos = s["end"]
     return "".join(out + [text[pos:]]), "\n".join(report)

@@ -60,8 +60,6 @@ Open, needs a live A/B on dd-machine (4B and 9B, seeds 1–3) before it ships:
   scene). Try: "If it already fits, write it unchanged."
 - Style: an `expand` on a comma-separated tag prompt may come back as a
   sentence. Try: "Match the prompt's style: a comma list stays a comma list."
-- Weights and LoRA tags inside a part (`(gold:1.2)`, `<lora:…>`) are not
-  protected. Try: "Keep (word:1.2) weights and <…> tags exactly as they are."
 - One short worked example in the system prompt (different content than any
   real prompt) for format adherence on 4B; watch for copied example content.
 - `short` on one or two words always asks for 1 word; maybe skip the call and
@@ -90,6 +88,21 @@ via MCP) writes the instructions; the local LLM applies them per run.
   `python scripts/llm_eval.py --seeds 1-3 --show-prompt` on dd-machine: compare
   `baseline` with `theme` and `angle`, and read `fit-fits` and `weights` for
   the open items of the prompt review.
+
+## Weights and tags (2026-11-22)
+
+Found: everything inside a marker went through the LLM, so `(gold:1.2)` was
+lost and a `<lora:…>` tag disappeared without a word. Now kept by code, not by
+asking the model:
+- `<…>` tags come out of the part before Prep and go back behind the answer.
+- A weight on the whole part (`[gen spin: (red dress:1.3)]`) is unwrapped for
+  the LLM and wraps the answer again; `([gen …]:1.3)` around the marker always
+  worked, Apply never touches it.
+- A weight on a piece of a part can't follow a rewrite: Prep removes it, the
+  report says `weight (…) dropped`. A fallback keeps the part exactly as written.
+- A part that is only a tag raises in Prep.
+- Not decided: whether weights matter at all with LLM text encoders
+  (Qwen-Image, Z-Image); with CLIP they clearly do.
 
 ## Goal
 
