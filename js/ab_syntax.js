@@ -19,6 +19,8 @@ const PROB_RE = /\d+(?:\.\d+)?%/y;
 const WEIGHT_RE = /\d+(?:\.\d+)?::/y;
 const IF_RE = /\[if\s/iy;
 const FN_RE = /\[(?:clean|shuffle):/iy;
+const GEN_RE = /\[gen(?:\s+(\w+))?\s*:/iy; // ops.py _MARKER
+const GEN_OPS = ["fill", "spin", "expand", "short", "fit"]; // ops.py LLM_OPS
 const TAG_OP_RE = /\b(?:AND|OR|NOT|XOR)\b|--|[()]/iy;
 
 // Where the engine cuts a line: first "//", then first "#", with "__#" and
@@ -235,6 +237,15 @@ export function tokenize(text, known = null) {
         add("fn", i, i + m[0].length);
         i += m[0].length; continue;
       }
+      m = sticky(GEN_RE, text, i);
+      if (m) {
+        stack.push({ kind: "fn", start: i, gen: true });
+        add("fn", i, i + m[0].length);
+        if (m[1] && !GEN_OPS.includes(m[1].toLowerCase())) {
+          warn(i, i + m[0].length, `Unknown [gen …] operation "${m[1]}": use ${GEN_OPS.join(", ")}`);
+        }
+        i += m[0].length; continue;
+      }
       i++; continue;
     }
 
@@ -319,7 +330,8 @@ function checkNames(text, tokens, known, warn) {
 }
 
 function unclosedMsg(frame) {
-  return frame.kind === "brace" ? "Unclosed {" : frame.kind === "if" ? "Unclosed [if" : "Unclosed [clean: / [shuffle:";
+  return frame.kind === "brace" ? "Unclosed {" : frame.kind === "if" ? "Unclosed [if"
+    : frame.gen ? "Unclosed [gen" : "Unclosed [clean: / [shuffle:";
 }
 
 // ---- Autocomplete ----------------------------------------------------------
