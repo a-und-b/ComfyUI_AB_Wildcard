@@ -16,3 +16,7 @@ build/
 .vscode/
 .idea/
 node.zip
+
+# scripts/llm_eval.py reports
+llm-eval-*.md
+llm-eval-*.json

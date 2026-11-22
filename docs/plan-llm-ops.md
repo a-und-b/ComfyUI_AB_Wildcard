@@ -86,7 +86,10 @@ via MCP) writes the instructions; the local LLM applies them per run.
 - Format contract (`N: …` lines) stays in code; agents write only content.
 - Agent guide: `docs/llm-agents.md` §5a (rules for instructions, test loop).
 - Not checked live yet: how strongly the 9B follows directions (theme
-  bleeding into every part, camera on `short`).
+  bleeding into every part, camera on `short`). Check with
+  `python scripts/llm_eval.py --seeds 1-3 --show-prompt` on dd-machine: compare
+  `baseline` with `theme` and `angle`, and read `fit-fits` and `weights` for
+  the open items of the prompt review.
 
 ## Goal
 

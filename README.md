@@ -455,6 +455,13 @@ pytest
 node tests/syntax.test.mjs            # tokenizer and diagnostics (plain node, no install)
 ```
 
+**LLM edits on a live ComfyUI.** `scripts/llm_eval.py` queues a set of `[gen …]` prompts (baseline, theme, angle, avoid, hints, do, weights …) once per seed through `/prompt` and writes a Markdown report with each part's old and new text and flags such as `fallback`, `bleed` (theme words leaking in) or `weights` (lost `(word:1.2)`). Standard library only:
+
+```bash
+python scripts/llm_eval.py --server http://127.0.0.1:8188 --seeds 1-3 --show-prompt
+python scripts/llm_eval.py --only theme,angle --clip qwen_3_4b.safetensors --clip-type lumina2
+```
+
 ---
 
 ## License
