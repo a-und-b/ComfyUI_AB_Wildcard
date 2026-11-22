@@ -1,7 +1,7 @@
 [project]
 name = "ab_wildcard"
-description = "Simple node for advanced wildcard text processing. Supports variables, conditionals, tag aggregation, weighted selection, and deep nesting. Lightweight, fast, zero external dependencies."
-version = "1.9.0"
+description = "Wildcards and dynamic prompts for ComfyUI: variables, conditionals, sequences, YAML tag cards, LoRA tags in the prompt and LLM edits on marked parts. Autocomplete and syntax highlighting in the node. Needs only PyYAML."
+version = "1.9.1"
 license = {file = "LICENSE"}
 
 [project.urls]
