@@ -55,11 +55,10 @@ Done, offline (pytest), not yet re-checked live:
 - System prompt: "Each numbered task below" → "Each task names one numbered
   part" (the tasks are in the user message, not below the system prompt).
 
-Open, needs a live A/B on dd-machine (4B and 9B, seeds 1–3) before it ships:
-- `fit` always rewrites, even a pick that already fits ("viking" in a viking
-  scene). Try: "If it already fits, write it unchanged."
-- Style: an `expand` on a comma-separated tag prompt may come back as a
-  sentence. Try: "Match the prompt's style: a comma list stays a comma list."
+Resolved by the live tuning below (9B): `fit` rewriting a pick that already
+fits, and `expand` turning a comma list into a sentence.
+
+Still open (only checked on 9B so far):
 - One short worked example in the system prompt (different content than any
   real prompt) for format adherence on 4B; watch for copied example content.
 - `short` on one or two words always asks for 1 word; maybe skip the call and
@@ -78,16 +77,13 @@ via MCP) writes the instructions; the local LLM applies them per run.
   part, shown as a "Direction for every task" block, each task ends with
   "Follow the direction above." Removed from the output with one neighbouring
   comma or their whole line.
-- Hint per marker: `[gen <op> (hint): …]` → "Also: hint." on that task. The
+- Hint per marker: `[gen <op> (hint): …]` → "Above all: hint." on that task. The
   hint sits before the first colon, so `(word:1.2)` in the content stays content.
 - `[gen do (instruction): …]`: rewrite by the instruction only; without one, Prep raises.
 - Format contract (`N: …` lines) stays in code; agents write only content.
 - Agent guide: `docs/llm-agents.md` §5a (rules for instructions, test loop).
-- Not checked live yet: how strongly the 9B follows directions (theme
-  bleeding into every part, camera on `short`). Check with
-  `python scripts/llm_eval.py --seeds 1-3 --show-prompt` on dd-machine: compare
-  `baseline` with `theme` and `angle`, and read `fit-fits` and `weights` for
-  the open items of the prompt review.
+- Checked live on 2026-11-22: see "Live eval and tuning" below. Theme works;
+  the camera never reached any part, so the angle is now appended by code.
 
 ## Weights and tags (2026-11-22)
 
@@ -103,6 +99,39 @@ asking the model:
 - A part that is only a tag raises in Prep.
 - Not decided: whether weights matter at all with LLM text encoders
   (Qwen-Image, Z-Image); with CLIP they clearly do.
+
+## Live eval and tuning (2026-11-22)
+
+On dd-machine (ComfyUI 0.46.2, `qwen3.5_9b_int8_convrot`, temperature 0.7),
+`scripts/llm_eval.py`, all 9 built-in cases × seeds 1–3. Round 0 (main after
+PR a-und-b/ComfyUI_AB_Wildcard#12): format kept in 27/27 runs, no fallback;
+theme visible without bleeding; weights and tags kept. Weak:
+- `angle`: "low angle, 24mm" appeared in none of the 9 answers. The camera is a
+  property of the whole image; a per-part rewrite has no place for it.
+- `expand` on a comma list came back as prose (3/3); `fit` rewrote a pick that
+  already fit ("horned iron helmet" → "weathered iron helmet", 3/3).
+- Hint "more ornate" mostly ignored ("crimson velvet gown").
+
+Decided (Holger): **Apply appends the angle text to the end of the output**;
+the LLM still gets it as a direction, told not to repeat it.
+
+Changed, then two rounds with `--local-prep` (Prep/Apply from the checkout, only
+generation on the server, so no restart per round; results identical to the
+server-side run for the same code and seed):
+- expand: "Keep its form: a list of short comma-separated phrases stays such a list, no full sentences."
+- fit: "Check whether … belongs to the same era and world as …. If it clearly
+  does, write it unchanged. If anything about it is from another era or world
+  (for example modern technology in a medieval scene), rewrite it …". A first
+  wording ("If it already matches, write it unchanged") let the astronaut in a
+  knight portrait through in 2/3 runs.
+- Hint: "Also: …" → "Above all: …" ("crimson brocade gown" 2/3).
+- Eval flag `sentence`: no longer fires on more commas (expand is asked for a
+  list now); fires when a comma list loses items or on is/are/which/where.
+
+Round 2: no fallback, no flag except the by-design `weights` on a part-weight;
+astronaut → knight 3/3, fitting helmet unchanged 2/3 ("horned helmet" once);
+expand returns comma lists; camera appended in every angle run.
+Not checked: the 4B encoder with the new wording.
 
 ## Goal
 

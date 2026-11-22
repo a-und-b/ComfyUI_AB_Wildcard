@@ -310,7 +310,7 @@ class ABLoraLoader(io.ComfyNode):
                     "The prompt, usually from AB Wildcard. <lora:name> = strength 1 · "
                     "<lora:name:0.8> = model and clip 0.8 · <lora:name:0.8:0.5> = model 0.8, clip 0.5")),
                 io.Combo.Input("if_missing", display_name="if a LoRA is missing", options=loras.MISSING_MODES,
-                               advanced=True, tooltip=(
+                               default=loras.MISSING_STOP, advanced=True, tooltip=(
                                    "stop with error: the run stops and names the LoRA · "
                                    "skip it: the tag is removed, the run goes on, the console warns")),
             ],

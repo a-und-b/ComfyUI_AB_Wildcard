@@ -38,3 +38,10 @@ def test_weights_flag_follows_the_weight_not_the_words():
     assert "weights" not in llm_eval.flags(part("castle, <lora:d:0.6>", "big castle <lora:d:0.6>"), set())
     assert "weights" in llm_eval.flags(part("(gold:1.2) crown", "ornate crown"), set())
     assert "weights" in llm_eval.flags(part("castle, <lora:d:0.6>", "big castle"), set())
+
+
+def test_sentence_flag_wants_lists_kept():
+    part = lambda old, new: {"op": "expand", "old": old, "new": new, "fallback": False}  # noqa: E731
+    assert "sentence" not in llm_eval.flags(part("castle", "stone fortress, gray walls, moonlit towers"), set())
+    assert "sentence" in llm_eval.flags(part("cabin, forest, dusk", "a cabin in a forest at dusk"), set())
+    assert "sentence" in llm_eval.flags(part("market", "a market where people trade"), set())

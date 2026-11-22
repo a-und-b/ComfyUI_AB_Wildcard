@@ -218,9 +218,10 @@ def test_llm_prep_whole_text_is_not_sent_twice():
 
 def test_llm_fit_names_its_reference_and_warns_without_one():
     _s, prompt, plan = ops.llm_prep("[gen fit: neon street]", "input", context="medieval village")
-    assert "clashes with the context" in prompt and "notes" not in plan
+    assert "same era and world as the context" in prompt and "notes" not in plan
     _s, prompt, plan = ops.llm_prep("a knight, [gen fit: neon street]", "full")
-    assert "clashes with the rest of the prompt" in prompt and "notes" not in plan
+    assert "same era and world as the rest of the prompt" in prompt and "notes" not in plan
+    assert "If it clearly does, write it unchanged" in prompt  # a pick that fits stays (live eval 2026-11-22)
     _s, _p, plan = ops.llm_prep("a knight, [gen fit: neon street]", "none")
     _t, report = ops.llm_apply(plan, "1: old town lane")
     assert report.splitlines()[0] == "1 fit: nothing to fit it to (scope none)"
@@ -248,10 +249,23 @@ def test_llm_directions_and_hints_reach_every_task():
     assert plan["text"].startswith("a knight") and "theme" not in prompt.split("Direction")[0]
     assert "- Theme: dark fairy tale; muted colors\n- Camera: low angle" in prompt
     task1, task2 = [ln for ln in prompt.splitlines() if ln.startswith("Task ")]
-    assert task1.endswith("Also: more gothic. Follow the direction above.")
+    assert task1.endswith("Above all: more gothic. Follow the direction above.")
     assert '"gold crown with jewels"' in task2 and task2.endswith("Follow the direction above.")
     assert [s["hint"] for s in plan["slots"]] == ["more gothic", ""]
-    assert ops.llm_apply(plan, "1: black lace gown\n2: crown")[0] == "a knight, black lace gown, crown"
+    text, report = ops.llm_apply(plan, "1: black lace gown\n2: crown")
+    assert text == "a knight, black lace gown, crown, low angle"  # the camera is appended by code
+    assert report.endswith('camera appended: "low angle"')
+
+
+@pytest.mark.parametrize("text, out", [
+    ("a cat, [gen angle: low angle, 24mm]", "a cat, low angle, 24mm"),
+    ("[gen angle: from above]\na cat,\n", "a cat, from above"),
+    ("A cat sleeps. [gen angle: close-up]", "A cat sleeps. close-up"),
+    ("[gen angle: from above]", "from above"),
+])
+def test_llm_angle_is_appended_without_parts_too(text, out):
+    _s, _p, plan = ops.llm_prep(text, "full")
+    assert ops.llm_apply(plan, "OK")[0] == out
 
 
 def test_llm_do_needs_an_instruction():

@@ -82,6 +82,19 @@ Outputs: `0 system_prompt`, `1 prompt` (STRING, to the generator), `2 plan` (`AB
 
 Outputs: `0 text` (the prompt with the new parts), `1 report` (one line per part: `N op: "old" → "new"` or `N op: fallback (why), kept "old"`).
 
+### `ABLoraLoader` — AB LoRA Loader
+
+| Input | Type | Values |
+|---|---|---|
+| `model` | MODEL | link |
+| `clip` | CLIP, optional link | without it the LoRAs change only the model |
+| `text` | STRING | prompt with `<lora:name>`, `<lora:name:0.8>` or `<lora:name:model:clip>` tags |
+| `if_missing` | COMBO | `stop with error` (default) · `skip it` |
+
+Outputs: `0 model`, `1 clip`, `2 text` (the prompt without the tags, to CLIP Text Encode),
+`3 loras` (one line per applied LoRA with its strengths). Names: any case, extension and
+folder optional; the list is in `GET /ab_wildcard/wildcards` under `loras`.
+
 ### `ABWildcardSave` — AB Wildcard Save (output node)
 
 | Input | Type | Values |
@@ -196,7 +209,7 @@ from the output (with one neighbouring comma, or their whole line):
 | Marker | Shown to the LLM as |
 |---|---|
 | `[gen theme: …]` | `- Theme: …` |
-| `[gen angle: …]` | `- Camera: … (write every part as seen from this camera position)` |
+| `[gen angle: …]` | `- Camera: … (added to the prompt as it is: don't repeat it, show each part as seen from there)`; Apply appends the text to the end of the output |
 | `[gen avoid: …]` | `- Avoid: …` |
 
 Several markers of one kind are joined with `; `. Without any part to edit,
@@ -267,14 +280,16 @@ a portrait of a knight, [1: red silk dress], [2: neon street]
 
 Direction for every task:
 - Theme: dark fairy tale
-- Camera: low angle, 24mm lens (write every part as seen from this camera position)
+- Camera: low angle, 24mm lens (added to the prompt as it is: don't repeat it, show each part as seen from there)
 
 Tasks:
-Task 1: Say "red silk dress" differently: … Also: more ornate. Follow the direction above.
-Task 2: "neon street" clashes with the rest of the prompt. Rewrite it … Follow the direction above.
+Task 1: Say "red silk dress" differently: … Above all: more ornate. Follow the direction above.
+Task 2: Check whether "neon street" belongs to the same era and world as the rest of the prompt. If it clearly does, write it unchanged. … Follow the direction above.
 
 Answer with exactly 2 lines, "1: …", "2: …".
 ```
+
+Apply then appends `, low angle, 24mm lens` to the finished prompt.
 
 The answer format and the rules around it are fixed in code; you never write
 them. You write only theme, angle, avoid, hints and `do` instructions.
@@ -295,8 +310,8 @@ Rules that work with the recommended 9B encoder:
   marker. A `:` ends the hint; `#` and `//` cut the line.
 - **Content angle vs camera angle:** what to emphasise goes into a hint
   (`expand (focus on materials)`), where the camera is goes into `[gen angle: …]`.
-  Directions reach the LLM only. To put the camera into the image prompt too,
-  use a variable for both: `$cam = {low angle|bird's eye view}`, `[gen angle: $cam]`, and `$cam` in the text.
+  Theme and avoid reach the LLM only; the angle also lands in the image prompt
+  (appended by Apply), so don't write the camera into the text a second time.
 - **Don't let the LLM choose.** Put the options into `{a|b|c}` or a wildcard file
   and let the LLM adapt the pick; LLM choices collapse to the same safe answer.
 
@@ -307,6 +322,10 @@ Loop before you queue a batch:
 3. Read the prompt the model got and the report: a `fallback` means no usable
    answer; an unchanged or odd answer means the instruction was unclear.
 4. Sharpen the hint or direction, repeat, then queue the batch.
+
+To change the prompt texts themselves (`LLM_TASKS` etc. in `ops.py`), run
+`scripts/llm_eval.py --local-prep` from the checkout: Prep and Apply run locally,
+only the generation runs on the server, so no restart is needed per round.
 
 ---
 
@@ -389,6 +408,8 @@ it: small models repeat themselves.
 |---|---|---|
 | `__name__` or `<name>` left in the output | no such file or card | look the name up via `/ab_wildcard/wildcards` |
 | Prompt cut off mid-line | `#` or `//` in the text | remove them or rephrase |
+| `AB LoRA Loader: there's no LoRA "…"` | typo or file missing | use a suggested name, or `if_missing: skip it` |
+| `AB LoRA Loader: "…" fits several LoRAs` | same file name in two folders | write the folder: `<lora:sdxl/detail:0.8>` |
 | `AB LLM Prep: unknown operation …` | `[gen foo: …]` | use `[gen: …]`, `spin`, `expand`, `short`, `fit`, `do`, `theme`, `angle`, `avoid` |
 | `AB LLM Prep: … needs an instruction` | `[gen do: …]` without `(…)` | `[gen do (what to do): …]` |
 | `AB LLM Prep: … nothing left to rewrite …` | the part is only a `<…>` tag or a weight | put the tag outside the marker |

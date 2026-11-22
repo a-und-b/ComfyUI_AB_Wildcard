@@ -94,6 +94,10 @@ def test_resolve_missing_suggests():
         loras.resolve("animu", FILES)
     with pytest.raises(LookupError, match=r'no LoRA "zzz" in the loras folder\.$'):
         loras.resolve("zzz", FILES)
+    # the suggestion is what autocomplete writes: original case, folder only when needed
+    files = ["SDXL/Standard/Princess_XL_v2.safetensors", "MOSS/x.safetensors"]
+    with pytest.raises(LookupError, match=r"Did you mean Princess_XL_v2\?"):
+        loras.resolve("princess_xl_v3", files)
 
 
 def test_insert_name():

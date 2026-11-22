@@ -212,15 +212,20 @@ LLM_TASKS = {
     "spin": "Say \"{c}\" differently: same meaning and subject, but replace most of the words "
             "with different ones (synonyms, other details of the same thing).",
     "expand": "Rewrite \"{c}\" with more visual detail (materials, colors, light, setting): "
-              "at least twice as many words, same subject.",
+              "at least twice as many words, same subject. Keep its form: a list of short "
+              "comma-separated phrases stays such a list, no full sentences.",
     "short": "Shorten \"{c}\" to at most {n} words. Keep the core, drop details.",
-    "fit": "\"{c}\" clashes with {ref}. Rewrite it to match {ref}'s era, setting and style: "
-           "keep what kind of thing it is (a place stays a place), change the details that clash.",
+    "fit": "Check whether \"{c}\" belongs to the same era and world as {ref}. If it clearly does, "
+           "write it unchanged. If anything about it is from another era or world (for example "
+           "modern technology in a medieval scene), rewrite it to match: keep what kind of thing "
+           "it is (a person stays a person, a place stays a place), change the details that clash.",
     "do": "Rewrite \"{c}\" as follows: {h}. Write it as a short image-prompt phrase.",
 }
 # What fit compares against, per scope; scope none gives the LLM nothing to fit to.
 _FIT_REF = {"full": "the rest of the prompt", "input": "the context"}
-_DIRECTION_NOTE = {"angle": " (write every part as seen from this camera position)"}
+# angle is also appended to the output by code (Apply): the camera belongs to the whole image,
+# and a per-part rewrite has no reliable place for it.
+_DIRECTION_NOTE = {"angle": " (added to the prompt as it is: don't repeat it, show each part as seen from there)"}
 
 
 def _unknown_op(marker):
@@ -324,7 +329,7 @@ def _task(i, slot, ref, directed):
                                      h=slot["hint"].rstrip("."))
     extra = []
     if slot["hint"] and slot["op"] != "do":
-        extra.append(f"Also: {slot['hint'].rstrip('.')}.")
+        extra.append(f"Above all: {slot['hint'].rstrip('.')}.")
     if directed:
         extra.append("Follow the direction above.")
     if extra:
@@ -343,7 +348,7 @@ def llm_prep(text, scope="full", default_op="none", context=""):
             raise _unknown_op(m.group(0))
     text, directions = llm_directions(text or "")
     slots = llm_slots(text, default_op)
-    plan = {"text": text, "slots": slots}
+    plan = {"text": text, "slots": slots, "append": ", ".join(directions.get("angle", []))}
     if not slots:
         if directions:
             plan["notes"] = ["no parts to edit: " + ", ".join(f"[gen {d}: …]" for d in directions)
@@ -402,8 +407,24 @@ def parse_llm_lines(answer, count):
     return found
 
 
+def _append(text, extra):
+    """text + ", " + extra at its end (camera from [gen angle: …])."""
+    if not extra:
+        return text
+    base = text.rstrip(" \t\n,")
+    return f"{base}{' ' if base.endswith('.') else ', '}{extra}" if base else extra
+
+
 def llm_apply(plan, answer):
     """(text, report): each slot's answer spliced into the original text, or its fallback."""
+    text, report = _apply_slots(plan, answer)
+    if plan.get("append"):
+        text = _append(text, plan["append"])
+        report += f"\ncamera appended: \"{plan['append']}\""
+    return text, report
+
+
+def _apply_slots(plan, answer):
     text, slots = plan["text"], plan["slots"]
     if not slots:
         return text, "\n".join(plan.get("notes", []) + [
