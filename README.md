@@ -14,15 +14,15 @@
 &nbsp;
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
+<br />
+
+![One AB Wildcard prompt over five seeds: hair colour and place change, and freckles or sea fog appear only when they fit](example_workflows/ab-wildcard-cover.gif)
+
 ---
 
 Random prompts are easy. Random prompts that hold together are not: the hair colour picked in line one has to match line five, a LoRA should load only for the style that needs it, and a grid of 3 styles × 4 lights should cover every pairing once instead of hoping the dice do. AB Wildcard puts all of that into one text field, with autocomplete and live error marks, and hands plain text to any CLIP Text Encode.
 
 [Install](#install) · [Example workflows](#example-workflows) · [Features](#features) · [Syntax](#syntax-reference) · [Contributing](#contributing)
-
-<br />
-
-![Six runs of one prompt with the seed on increment: sequences step through colours, combinations and a shuffled deck](example_workflows/ab-wildcard-sequences.gif)
 
 </div>
 
