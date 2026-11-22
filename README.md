@@ -1,31 +1,69 @@
-# AB Wildcard - ComfyUI Wildcard Processor
+<div align="center">
 
-**A powerful text processing engine for ComfyUI prompts.**
+# AB Wildcard: dynamic prompts and wildcards for ComfyUI
 
-Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Tag Aggregation, Weighted Selection, and Deep Nesting.
+**One prompt, a new variation on every run, and the parts still fit together.**
+
+<br />
+
+[![Star this repo](https://img.shields.io/github/stars/a-und-b/ComfyUI_AB_Wildcard?style=for-the-badge&logo=github&label=Star&color=yellow)](https://github.com/a-und-b/ComfyUI_AB_Wildcard/stargazers)
+&nbsp;
+[![Comfy Registry installs](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fab_wildcard&query=%24.downloads&label=registry%20installs&style=for-the-badge&color=5b6cff)](https://registry.comfy.org/nodes/ab_wildcard)
+&nbsp;
+[![Comfy Registry version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fab_wildcard&query=%24.latest_version.version&label=version&prefix=v&style=for-the-badge&color=333)](https://registry.comfy.org/nodes/ab_wildcard)
+&nbsp;
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
 ---
+
+Random prompts are easy. Random prompts that hold together are not: the hair colour picked in line one has to match line five, a LoRA should load only for the style that needs it, and a grid of 3 styles × 4 lights should cover every pairing once instead of hoping the dice do. AB Wildcard puts all of that into one text field, with autocomplete and live error marks, and hands plain text to any CLIP Text Encode.
+
+[Install](#install) · [Example workflows](#example-workflows) · [Features](#features) · [Syntax](#syntax-reference) · [Contributing](#contributing)
+
+<br />
+
+![Six runs of one prompt with the seed on increment: sequences step through colours, combinations and a shuffled deck](example_workflows/ab-wildcard-sequences.gif)
+
+</div>
+
+---
+
+## Why AB Wildcard
+
+Most wildcard nodes pick a random line and stop. Once a prompt needs logic — the same character across a batch, a LoRA only for one style, every combination of a grid exactly once — you end up wiring extra nodes or writing a script. Here it stays in the prompt. The pack loads no models, makes no network calls and needs nothing but PyYAML.
 
 ## Features
 
-* **Wildcards** — Load random entries from `.txt` and `.yaml` files
-* **Dynamic Choices** — `{a|b|c}` random selection with range support
-* **Sequences** — `{~…}` step, `{@…}` all combinations, `{!…}` shuffled deck (no repeats per round)
-* **Variables** — Define once (`$var={...}`), reuse everywhere (`$var`)
-* **Conditional Logic** — `[if condition : true | false]` with AND/OR/NOT/XOR
-* **Tag Aggregation** — `<[Tag]>` to pick from YAML cards by tag
-* **Card by Title** — `__Card Name__` to pull a specific YAML card's prompt
-* **Global Presets** — Auto-load variables from `globals.yaml`
-* **In-node Helpers** — Autocomplete (type `__`, `<name`, `<[`, `$`) + Wildcards/Tags dropdowns
-* **Syntax Highlighting** — Colours, variable chips and underlined mistakes while you type
-* **Wildcard Files in the Graph** — Save and load wildcard files through node inputs and outputs
-* **Text Tools** — Line operations in one node, and a mixer that lets prompt pieces through by chance
-* **LLM Edits** — A text generator rewrites only the marked parts of a prompt (`[gen spin: …]`); the rest never passes through it
-* **LoRAs in the Prompt** — `<lora:name:0.8>` with autocomplete and a check for unknown names; **AB LoRA Loader** loads them and removes the tags
+| You want | You write |
+|----------|-----------|
+| A random line from a wildcard file | `__colors__`, `__2$$colors__` |
+| Choices, weighted or several at once | `{5::red\|3::blue\|green}`, `{1-3$$a\|b\|c\|d}` |
+| One pick, reused everywhere | `$hair = {red\|black}` … `$hair` |
+| Text only when something holds | `[if $hair=red AND NOT dark : freckles]` |
+| Every combination, in order | `{@a\|b} {@x\|y\|z}` with the seed on `increment` |
+| A shuffled deck without repeats | `{!a\|b\|c\|d}` |
+| Picks by tag from YAML cards | `<[mage AND fire]>`, or one card by name: `__Fire Mage__` |
+| LoRAs that follow the prompt | `{<lora:anime:0.8>\|<lora:oil:0.7>}` + **AB LoRA Loader** |
+| An LLM that rewrites only one part | `[gen spin: red silk dress]` + **AB LLM Prep / Apply** |
+| Presets in every prompt | `$quality` from `globals.yaml` |
+
+**In the editor:** [autocomplete](#finding-wildcards-autocomplete--dropdowns) for wildcards, tags, variables and LoRAs · [syntax highlighting with error marks](#syntax-highlighting-and-diagnostics) · [find and replace, and search inside your wildcard files](#find-and-replace).
+
+**In the graph:** [save, load and filter wildcard files](#wildcard-files-and-text-tools) with node inputs and outputs, and mix prompt pieces by chance.
 
 ---
 
-## Installation
+## Install
+
+**ComfyUI Manager:** search for **AB Wildcard**, install, restart ComfyUI.
+
+**comfy-cli:**
+
+```bash
+comfy node install ab_wildcard
+```
+
+**Manually:**
 
 ```bash
 cd ComfyUI/custom_nodes/
@@ -33,7 +71,7 @@ git clone https://github.com/a-und-b/ComfyUI_AB_Wildcard.git
 pip install -r ComfyUI_AB_Wildcard/requirements.txt
 ```
 
-Restart ComfyUI.
+Restart ComfyUI. The nodes appear under **AB Utils**.
 
 ---
 
@@ -527,19 +565,36 @@ python scripts/llm_eval.py --local-prep --server http://my-gpu-box:8188   # prom
 
 ---
 
+## Contributing
+
+Bug reports, wildcard ideas and pull requests are welcome. Open an [issue](https://github.com/a-und-b/ComfyUI_AB_Wildcard/issues) first for larger changes, so we can agree on the syntax before you build it. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the three steps; the tests are under [Development](#development).
+
+---
+
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ---
 
 ## Credits
 
-This node is a heavily modified fork of [UmiAI](https://github.com/Tinuva88/Comfy-UmiAI).
+AB Wildcard started as a fork of [UmiAI](https://github.com/Tinuva88/Comfy-UmiAI) and has been rebuilt since.
 
-**Changes from original**:
-- **Removed**: LLM integration, LoRA handling, resolution control, negative prompt handling, API calls
-- **Added**: Weighted selection syntax (`{5::red|3::blue}`), deep nesting support, custom separators (`{2$$ and $$a|b}`)
-- **Refactored**: Pure text processing focus, single output node, streamlined codebase
+- **Dropped from the original:** the built-in LLM and API calls, resolution control, negative prompt handling, and LoRA handling inside the wildcard node.
+- **Added:** weighted and nested choices, custom separators, sequences, autocomplete, syntax highlighting, find and search, wildcard file nodes and text tools.
+- **Back as separate nodes:** LLM edits run through ComfyUI's own Generate Text node, so the pack still makes no network calls. LoRAs load through **AB LoRA Loader**.
 
-Many thanks to the original UmiAI developers for the foundational wildcard processing architecture.
+Many thanks to the UmiAI developers for the wildcard engine this grew from.
+
+---
+
+<div align="center">
+
+Built by [Holger Will](https://github.com/a-und-b) at [anders & besser](https://andersundbesser.de)
+
+<br />
+
+[![Star this repo](https://img.shields.io/github/stars/a-und-b/ComfyUI_AB_Wildcard?style=for-the-badge&logo=github&label=Star&color=yellow)](https://github.com/a-und-b/ComfyUI_AB_Wildcard/stargazers)
+
+</div>
