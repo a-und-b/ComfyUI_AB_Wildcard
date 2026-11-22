@@ -8,7 +8,7 @@
 //   diagnostics:  { severity: "error", start, end, message }
 //
 // Token types: comment, varDef, assign, variable, wildcard, wildcardSeq,
-//   angle, tagDelim, tagOp, brace, seqMode, count, prob, weight, pipe,
+//   angle, lora, tagDelim, tagOp, brace, seqMode, count, prob, weight, pipe,
 //   ifKw, ifSep, fn.
 
 const NAME = "[A-Za-z0-9_]+";
@@ -22,15 +22,18 @@ const FN_RE = /\[(?:clean|shuffle):/iy;
 const GEN_RE = /\[gen(?:\s+(\w+))?\s*(?:\(([^():\]]*)\))?\s*:/iy; // ops.py _MARKER
 const GEN_OPS = ["fill", "spin", "expand", "short", "fit", "do", "theme", "angle", "avoid"]; // ops.py LLM_OPS + LLM_DIRECTIONS
 const TAG_OP_RE = /\b(?:AND|OR|NOT|XOR)\b|--|[()]/iy;
+const LORA_RE = /<(?:lora|lyco):[^<>\n]*>/gi; // loras.py TAG_RE
 
-// Where the engine cuts a line: first "//", then first "#", with "__#" and
-// "<#" protected (nodes.py, ABWildcardNode.process).
+// Where the engine cuts a line: first "//", then first "#", with "__#", "<#"
+// and "#" inside <lora:…> protected (nodes.py, ABWildcardNode.process).
 function commentStart(line) {
   let cut = line.length;
   const slash = line.indexOf("//");
   if (slash >= 0) cut = slash;
+  const inLora = [...line.matchAll(LORA_RE)].map((m) => [m.index, m.index + m[0].length]);
   for (let i = line.indexOf("#"); i >= 0 && i < cut; i = line.indexOf("#", i + 1)) {
-    const protectedHash = line.slice(Math.max(0, i - 2), i) === "__" || line[i - 1] === "<";
+    const protectedHash = line.slice(Math.max(0, i - 2), i) === "__" || line[i - 1] === "<"
+      || inLora.some(([a, b]) => i > a && i < b);
     if (!protectedHash) { cut = i; break; }
   }
   return cut;
@@ -186,6 +189,10 @@ export function tokenize(text, known = null) {
       const lineEnd = nl < 0 ? text.length : nl;
       const close = text.indexOf(">", i + 1);
       const inner = close >= 0 && close < lineEnd ? text.slice(i + 1, close) : null;
+      if (inner !== null && /^(?:lora|lyco):/i.test(inner) && !inner.includes("<")) {
+        add("lora", i, close + 1);
+        i = close + 1; continue;
+      }
       if (inner !== null && inner.length && (inner.includes("[") || (inner === inner.trim() && !inner.includes("__")))) {
         scanAngle(i, close);
         i = close + 1; continue;
@@ -302,6 +309,12 @@ function checkNames(text, tokens, known, warn) {
       if (!usesWildcard && /^[A-Za-z_]/.test(name) && !defined.has(lower(name))) {
         warn(t.start, t.end, `$${name} is never assigned`);
       }
+    } else if (t.type === "lora" && known?.loras) {
+      const spec = parseLoraSpec(text.slice(t.start, t.end).replace(/^<[^:]*:/, "").slice(0, -1));
+      if (!spec) { warn(t.start, t.end, "LoRA tag without a name"); continue; }
+      const found = loraMatches(spec.name, known.loras);
+      if (!found.length) warn(t.start, t.end, `Unknown LoRA "${spec.name}"`);
+      else if (found.length > 1) warn(t.start, t.end, `"${spec.name}" fits ${found.length} LoRAs; write the folder too`);
     } else if (wildcards && (t.type === "wildcard" || t.type === "wildcardSeq")) {
       let name = text.slice(t.start, t.end).replace(/^__/, "").replace(/(__|>)$/, "");
       while (/^(?:#[0-9|]+\$\$|[~@!]|\d+(?:\s*-\s*\d+)?\$\$)/.test(name)) name = name.replace(/^(?:#[0-9|]+\$\$|[~@!]|\d+(?:\s*-\s*\d+)?\$\$)/, "");
@@ -336,17 +349,63 @@ function unclosedMsg(frame) {
     : frame.gen ? "Unclosed [gen" : "Unclosed [clean: / [shuffle:";
 }
 
+// ---- LoRA names (mirror of loras.py) --------------------------------------
+
+const LORA_EXT = [".safetensors", ".ckpt", ".pt", ".pt2", ".bin", ".pth", ".pkl", ".sft"];
+const NUM_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+const normPath = (p) => lower(p.replace(/\\/g, "/").trim().replace(/^\/+|\/+$/g, ""));
+const stemPath = (p) => { const n = normPath(p); const e = LORA_EXT.find((x) => n.endsWith(x)); return e ? n.slice(0, -e.length) : n; };
+const basePath = (p) => stemPath(p).split("/").pop();
+
+// "name:0.8:0.5" -> { name, model, clip } (numbers from the right), or null without a name.
+export function parseLoraSpec(spec) {
+  const parts = spec.split(":").map((p) => p.trim());
+  const nums = [];
+  while (parts.length > 1 && nums.length < 2 && NUM_RE.test(parts[parts.length - 1])) nums.unshift(parseFloat(parts.pop()));
+  const name = parts.join(":").trim();
+  if (!name) return null;
+  const model = nums.length ? nums[0] : 1;
+  return { name, model, clip: nums.length > 1 ? nums[1] : model };
+}
+
+// Files (relative paths in the loras folder) that `name` points to: full path
+// first, then path without extension, then file name alone. Case-insensitive.
+export function loraMatches(name, files) {
+  const key = normPath(name), stem = stemPath(name);
+  const exact = files.filter((f) => normPath(f) === key);
+  if (exact.length) return exact;
+  const byPath = files.filter((f) => stemPath(f) === stem);
+  if (byPath.length) return byPath;
+  return files.filter((f) => basePath(f) === stem);
+}
+
+// What autocomplete inserts per file: name without extension, folders only when
+// the name exists in several folders.
+export function loraInsertNames(files) {
+  const count = new Map();
+  for (const f of files) count.set(basePath(f), (count.get(basePath(f)) || 0) + 1);
+  return files.map((f) => {
+    const p = f.replace(/\\/g, "/");
+    const e = LORA_EXT.find((x) => p.toLowerCase().endsWith(x));
+    const stem = e ? p.slice(0, -e.length) : p;
+    return count.get(basePath(f)) === 1 ? stem.split("/").pop() : stem;
+  });
+}
+
 // ---- Autocomplete ----------------------------------------------------------
 
 export const MODIFIERS = ["clean", "upper", "lower", "title"];
 
 // What is the user typing at the end of `before` (the text up to the cursor)?
-// -> { kind: "modifier" | "variable" | "tag" | "wildcard", query, start, opener } or null.
-// opener is "." for modifiers, "$" for variables, "<[" for tags, "__" or "<" for wildcards.
+// -> { kind: "modifier" | "variable" | "tag" | "wildcard" | "lora", query, start, opener } or null.
+// opener is "." for modifiers, "$" for variables, "<[" for tags, "__" or "<" for wildcards,
+// "<lora:" for LoRAs (also typed as <lyco:).
 // Modifiers open from the first letter after the dot (a sentence-ending "$a." stays quiet).
 // `{2$$` and "$5" are not variables; "a < b" is not a wildcard.
 export function completionContext(before) {
-  let m = /\$[A-Za-z0-9_]+(?:\.[A-Za-z_]+)*(\.)([A-Za-z_]+)$/.exec(before);
+  let m = /<(?:lora|lyco):([^<>:\n]*)$/i.exec(before);
+  if (m) return { kind: "lora", query: m[1].trimStart(), start: m.index, opener: "<lora:" };
+  m = /\$[A-Za-z0-9_]+(?:\.[A-Za-z_]+)*(\.)([A-Za-z_]+)$/.exec(before);
   if (m) return { kind: "modifier", query: m[2], start: m.index + m[0].length - m[2].length - 1, opener: "." };
   m = /(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)?$/.exec(before);
   if (m) return { kind: "variable", query: m[1] || "", start: m.index, opener: "$" };
@@ -361,6 +420,7 @@ export function completionContext(before) {
 export function completionText(ctx, name) {
   if (ctx.kind === "tag") return `<[${name}]>`;
   if (ctx.kind === "wildcard") return ctx.opener === "<" ? `<${name}>` : `__${name}__`;
+  if (ctx.kind === "lora") return `<lora:${name}:1>`;
   return ctx.opener + name; // "$name" or ".modifier"
 }
 

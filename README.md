@@ -21,6 +21,7 @@ Pure **text processing** focused on: Wildcards, Variables, Conditional Logic, Ta
 * **Wildcard Files in the Graph** — Save and load wildcard files through node inputs and outputs
 * **Text Tools** — Line operations in one node, and a mixer that lets prompt pieces through by chance
 * **LLM Edits** — A text generator rewrites only the marked parts of a prompt (`[gen spin: …]`); the rest never passes through it
+* **LoRAs in the Prompt** — `<lora:name:0.8>` with autocomplete and a check for unknown names; **AB LoRA Loader** loads them and removes the tags
 
 ---
 
@@ -38,7 +39,7 @@ Restart ComfyUI.
 
 ## Example workflows
 
-The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models — except the two LLM workflows, which load a text encoder that can generate (see [LLM Edits](#llm-edits-on-marked-parts)).
+The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models — except the two LLM workflows, which load a text encoder that can generate (see [LLM Edits](#llm-edits-on-marked-parts)), and the LoRA workflow.
 
 **Basic** — [`ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json): `{a|b}` choices.
 
@@ -70,6 +71,10 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 **Wildcard entries from an LLM** — [`ab-llm-wildcard-entries.json`](example_workflows/ab-llm-wildcard-entries.json): **Generate Text** lists 20 professions, **AB Text Lines** strips the numbering (replace, regex `^\d+[.:)]\s*`), **AB Wildcard Save** adds them to `llm/professions`.
 
+**LoRAs** — [`ab-lora-loader.json`](example_workflows/ab-lora-loader.json): AB Wildcard picks one of two style LoRAs and adds a third only when the prompt says `garden`; **AB LoRA Loader** loads them, outputs the prompt without tags and lists what it applied (see [LoRAs in the Prompt](#loras-in-the-prompt)). Choose your checkpoint and replace the LoRA names with your own: typing `<lora:` suggests them.
+
+![LoRA example workflow: AB Wildcard into AB LoRA Loader, then CLIP Text Encode and KSampler](example_workflows/ab-lora-loader-preview.png)
+
 1. Load a workflow file.
 2. Edit the prompt text.
 3. Queue it and read the expanded text in **Preview as Text**.
@@ -83,6 +88,8 @@ This node is **pure text processing** — it takes text input and outputs proces
 | Output | Connect To |
 |--------|-----------|
 | `text` | CLIP Text Encode or any other text input |
+
+With `<lora:…>` tags in the prompt, put **AB LoRA Loader** in between (see [LoRAs in the Prompt](#loras-in-the-prompt)).
 
 ---
 
@@ -192,6 +199,48 @@ The CLIP type only matters for loading; the same weights give the same text. Kee
 
 ---
 
+## LoRAs in the Prompt
+
+Write LoRAs into the prompt like in A1111/Forge. **AB LoRA Loader** (in **AB Utils**) loads them onto the model and CLIP and passes on the prompt without the tags.
+
+```
+Load Checkpoint ─model, clip─→ AB LoRA Loader ─model─→ KSampler
+AB Wildcard ─text──────────→       │        ─clip, text─→ CLIP Text Encode
+```
+
+| Tag | Strength |
+|-----|----------|
+| `<lora:name>` | 1 for model and CLIP |
+| `<lora:name:0.8>` | 0.8 for model and CLIP |
+| `<lora:name:0.8:0.5>` | model 0.8, CLIP 0.5 |
+
+Because AB Wildcard leaves the tags alone, everything else in the syntax works with them:
+
+```text
+{<lora:anime:0.8>|<lora:oil_paint:0.7>}            one of two styles
+cyberpunk city [if cyberpunk : <lora:neon:0.6>]    LoRA only when the word is in the prompt
+$style = <lora:watercolor:0.9>                     in a variable
+```
+
+A YAML card can bring its LoRA along: `Prefix: ["<lora:iron_knight:0.8>"]`, then `__Iron Knight__` or `<[knight]>` loads it with the card.
+
+**Typing** — `<lora:` opens the autocomplete with the files in `ComfyUI/models/loras` (subfolders and `extra_model_paths.yaml` included). Accepting writes `<lora:name:1>` and selects the `1`, so you type the strength right away. The node's **LoRAs** dropdown inserts the same. An unknown name gets an amber underline.
+
+**Names** — the file name without extension, any case. The folder is only needed when the same name exists in several folders (`sdxl/detail`); the extension only when one folder holds `name.safetensors` and `name.pt`. Autocomplete writes the short form whenever it is unique.
+
+**AB LoRA Loader**
+
+- Inputs: `model`, `clip` (optional: without it the LoRAs change only the model, e.g. for video models), `text`.
+- Outputs: `model`, `clip`, `text` without the tags, and `loras`: each applied LoRA with its strengths, one per line.
+- The same LoRA twice adds up its strengths. Strength 0 skips it; negative values work.
+- Under **Show advanced inputs**: **if a LoRA is missing** — *stop with error* (default: the run stops and names the LoRA, with close names as suggestions) or *skip it* (the tag goes, the run goes on, the console warns).
+- Only lines that held a tag are tidied (no `, ,` left); every other line stays exactly as it was.
+- `<lyco:…>` from older A1111 prompts is read as `<lora:…>`. A `#` inside a tag is part of the name, not a comment.
+
+Not supported: block weights and A1111's named arguments (`<lora:x:unet=0.5>`), trigger words from the LoRA's metadata.
+
+---
+
 ## Finding Wildcards (Autocomplete & Dropdowns)
 
 Two ways to insert tokens without memorizing names:
@@ -201,10 +250,10 @@ Two ways to insert tokens without memorizing names:
 - **Autocomplete** — type `__` (or `<` directly followed by a letter, e.g. `<co`) for
   wildcards/card titles, `<[` for tags, `$` for variables (`globals.yaml` names plus every
   `$name = …` in the field, wherever it is defined) and `$name.c` (first letter after the dot) for the modifiers
-  `clean`, `upper`, `lower`, `title`.
+  `clean`, `upper`, `lower`, `title`, and `<lora:` for LoRA files.
   Navigate with arrow keys, accept with **Tab/Enter or mouse click**.
-- **Dropdowns** — the node's **Wildcards** and **Tags** combos insert the
-  matching token (`__name__` / `<[tag]>`) on selection.
+- **Dropdowns** — the node's **Wildcards**, **Tags** and **LoRAs** combos insert the
+  matching token (`__name__` / `<[tag]>` / `<lora:name:1>`) on selection.
 
 Works in both the classic and **Nodes 2.0 (Vue)** renderer. Use **Refresh
 Wildcards** after adding files.
@@ -217,9 +266,9 @@ The text field colours the syntax as you type and marks mistakes.
 
 ![Highlighted prompt with an underlined unknown wildcard and an unclosed brace](example_workflows/ab-wildcard-highlighting-preview.png)
 
-- **Colours** — comments, variables (as green chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]`, `[clean:]` and `[gen …]` markers.
+- **Colours** — comments, variables (as green chips), LoRA tags (as orange chips), wildcards, tag queries, choices, sequences (`~ @ !`), counts and weights, `[if …]`, `[clean:]` and `[gen …]` markers.
 - **Red wavy underline** — an error: an unclosed `{`, `[if`, `<[`, `[clean:`, `[shuffle:` or `[gen`, an unmatched `}`, or `[if` without `:`.
-- **Amber wavy underline** — a warning: a wildcard or tag the server does not know, `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), `{@…}` inside `{@…}` (not counted evenly), an unknown `[gen …]` operation such as `[gen spinn: …]`, or `[gen do: …]` without an instruction (AB LLM Prep would stop the run on either).
+- **Amber wavy underline** — a warning: a wildcard, tag or LoRA the server does not know (or a LoRA name found in several folders), `$name` never assigned, a count larger than the option list (`{3$$a|b}`), an empty `{}`, two identical `{!…}` blocks (they draw the same option), `{@…}` inside `{@…}` (not counted evenly), an unknown `[gen …]` operation such as `[gen spinn: …]`, or `[gen do: …]` without an instruction (AB LLM Prep would stop the run on either).
 - **Blue dotted underline** — a hint: a `//` or `#` inside a block or URL starts a comment.
 - A strip at the bottom of the field gives the counts and the message at the caret.
 

@@ -8,6 +8,11 @@ import folder_paths
 import server
 from aiohttp import web
 
+try:
+    from . import loras
+except ImportError:  # tests import nodes.py as a top-level module
+    import loras
+
 # ==============================================================================
 # GLOBAL CACHE
 # ==============================================================================
@@ -1293,7 +1298,8 @@ class ABWildcardNode:
         # ============================================================
         
         # Strip comments
-        protected_text = text.replace('__#', '___UMI_HASH_PROTECT___').replace('<#', '<___UMI_HASH_PROTECT___')
+        protected_text = loras.protect_hashes(text, '___AB_LORA_HASH___')
+        protected_text = protected_text.replace('__#', '___UMI_HASH_PROTECT___').replace('<#', '<___UMI_HASH_PROTECT___')
         clean_lines = []
         for line in protected_text.splitlines():
             if '//' in line:
@@ -1307,7 +1313,7 @@ class ABWildcardNode:
         text = "\n".join(clean_lines)
         # "<" variant first: the bare marker below would otherwise swallow it.
         # "__#" is restored with its underscores (they were lost before, issue #7).
-        text = text.replace('<___UMI_HASH_PROTECT___', '<#').replace('___UMI_HASH_PROTECT___', '__#')
+        text = text.replace('<___UMI_HASH_PROTECT___', '<#').replace('___UMI_HASH_PROTECT___', '__#').replace('___AB_LORA_HASH___', '#')
 
         random.seed(seed)
         sequence = SequenceContext(seed)
@@ -1367,6 +1373,13 @@ class ABWildcardNode:
 # ==============================================================================
 # API ENDPOINTS
 # ==============================================================================
+
+def _lora_files():
+    """LoRA files (relative paths) for autocomplete; empty when ComfyUI has no loras folder."""
+    try:
+        return loras.file_list_for_api(folder_paths.get_filename_list("loras"))
+    except Exception:
+        return []
 
 def _global_names(loader):
     """Names (not values) of the variables globals.yaml defines, for the frontend."""
@@ -1429,7 +1442,8 @@ async def get_wildcards(request):
     return web.json_response({
         "wildcards": wildcards,
         "tags": tags,
-        "globals": _global_names(loader)
+        "globals": _global_names(loader),
+        "loras": _lora_files(),
     })
 
 @server.PromptServer.instance.routes.post("/ab_wildcard/refresh")
@@ -1455,5 +1469,6 @@ async def refresh_wildcards(request):
         "count": len(wildcards),
         "wildcards": wildcards,
         "tags": tags,
-        "globals": _global_names(loader)
+        "globals": _global_names(loader),
+        "loras": _lora_files(),
     })
