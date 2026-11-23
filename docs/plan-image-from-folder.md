@@ -1,10 +1,11 @@
 # Plan: images from a folder (AB Image from Folder)
 
-Status: built 2026-11-23 on branch `feat/image-from-folder` (`folder.py`,
-`js/ab_image_folder.js`, `tests/test_folder.py`); pytest, the widget roundtrip
-(both renderers, seed linked or not) and the grid checks below pass on the
-local test engine. README section and example workflow added on
-`release/1.11.0` (not pushed); the live checks on dd-machine are still open. Origin: analysis of
+Status: released as 1.11.0 on 2026-11-23 (PR a-und-b/ComfyUI_AB_Wildcard#17,
+publish run succeeded) — `folder.py`, `js/ab_image_folder.js`,
+`tests/test_folder.py`, README section, example workflow. pytest, the widget
+roundtrip (both renderers, seed linked or not) and the grid checks below pass
+on the local test engine. Released without the live checks on dd-machine
+(Holger's call); they are still open. Origin: analysis of
 [ComfyUI-DirGir](https://github.com/AshMartian/ComfyUI-DirGir) — its folder
 loop is the useful part, its state handling is not (see "Why not DirGir").
 

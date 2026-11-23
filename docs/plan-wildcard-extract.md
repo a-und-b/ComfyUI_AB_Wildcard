@@ -1,9 +1,10 @@
 # Plan: big prompt → wildcard files (AB Wildcard Extract)
 
-Status: built 2026-11-23 on `feat/wildcard-extract` (`ops.extract`,
-`ops.save_extracted`, `tools.ABWildcardExtract`, `tests/test_extract.py`).
-Example workflow, preview and README section added on `release/1.11.0`
-(not pushed), together with AB Image from Folder (`plan-image-from-folder.md`).
+Status: released as 1.11.0 on 2026-11-23 (PR a-und-b/ComfyUI_AB_Wildcard#17,
+publish run succeeded), together with AB Image from Folder
+(`plan-image-from-folder.md`) — `ops.extract`, `ops.save_extracted`,
+`tools.ABWildcardExtract`, `tests/test_extract.py`, example workflow, preview,
+README section.
 
 ## Goal
 
