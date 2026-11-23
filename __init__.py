@@ -22,6 +22,13 @@ else:
     for cls in (ABWildcardSave, ABWildcardLoad, ABTextLines, ABPromptMix, ABLLMPrep, ABLLMApply, ABLoraLoader):
         NODE_CLASS_MAPPINGS[cls.__name__] = cls
 
+try:
+    from .folder import ABImageFromFolder
+except ImportError as e:
+    logging.warning(f"[AB Wildcard] AB Image from Folder needs a newer ComfyUI and is disabled: {e}")
+else:
+    NODE_CLASS_MAPPINGS["ABImageFromFolder"] = ABImageFromFolder
+
 # Expose the web directory (frontend autocomplete)
 WEB_DIRECTORY = "./js"
 
