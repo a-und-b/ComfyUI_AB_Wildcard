@@ -49,7 +49,7 @@ Most wildcard nodes pick a random line and stop. Once a prompt needs logic — t
 
 **In the editor:** [autocomplete](#finding-wildcards-autocomplete--dropdowns) for wildcards, tags, variables and LoRAs · [syntax highlighting with error marks](#syntax-highlighting-and-diagnostics) · [find and replace, and search inside your wildcard files](#find-and-replace).
 
-**In the graph:** [save, load and filter wildcard files](#wildcard-files-and-text-tools) with node inputs and outputs, and mix prompt pieces by chance.
+**In the graph:** [save, load and filter wildcard files](#wildcard-files-and-text-tools) with node inputs and outputs, turn a long prompt into wildcard files, mix prompt pieces by chance, and [load one image per run from a folder](#images-from-a-folder) with the same seed logic.
 
 ---
 
@@ -103,6 +103,14 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 ![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
 
+**Extract** — [`ab-wildcard-extract.json`](example_workflows/ab-wildcard-extract.json): **AB Wildcard Extract** turns two choices, a named variable and a list into four files in `wildcards/extracted/` and shows the shortened prompt (see [Wildcard Files and Text Tools](#wildcard-files-and-text-tools)).
+
+![Extract example workflow: a prompt with choices and a list becomes four wildcard files](example_workflows/ab-wildcard-extract-preview.png)
+
+**Images from a folder** — [`ab-image-from-folder.json`](example_workflows/ab-image-from-folder.json): **AB Image from Folder** loads the next image of `ComfyUI/input/ab_example_images` on every run and shows its name. Put a few images into that folder first, or type your own folder (see [Images from a Folder](#images-from-a-folder)).
+
+![Image from folder example workflow: thumbnails of the folder, the loaded image and its file name](example_workflows/ab-image-from-folder-preview.png)
+
 **Full demo** — [`ab-wildcard-all-nodes-tour.json`](example_workflows/ab-wildcard-all-nodes-tour.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
 
 **LLM edits** — [`ab-llm-slots.json`](example_workflows/ab-llm-slots.json): AB Wildcard → **AB LLM Prep** → core **Generate Text** → **AB LLM Apply**. A random pick inside `[gen fit: …]` is adapted to the rest of the prompt, `[gen spin: …]` and `[gen expand: …]` are rewritten, everything else stays as typed.
@@ -133,7 +141,7 @@ With `<lora:…>` tags in the prompt, put **AB LoRA Loader** in between (see [Lo
 
 ## Wildcard Files and Text Tools
 
-Four more nodes in **AB/Text** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
+Five more nodes in **AB/Text** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
 
 **AB Wildcard Save** saves lines as `ComfyUI/wildcards/<name>.txt` (subfolders allowed: `my/colors`). Type the list into `text` or connect one.
 
@@ -142,6 +150,24 @@ Four more nodes in **AB/Text** build and shape wildcard files inside a graph. Th
 - The file works as `__my/colors__` right away, no **Refresh Wildcards** needed.
 - Lines are trimmed and empty ones dropped. Names with `..`, absolute paths or a leading `~ @ !` are refused.
 - ComfyUI skips a node whose inputs didn't change, so queuing the same text again doesn't add it twice.
+
+**AB Wildcard Extract** turns a long prompt into wildcard files: every `{a|b|c}` choice and every list becomes a file in `ComfyUI/wildcards/<folder>/`, and the prompt comes back with `__folder/name__` in their place.
+
+```text
+in:   $color = {red|blue|green}                 out:  $color = __extracted/color__
+      a $color car in {Paris|Tokyo|Berlin},           a $color car in __extracted/choice_1__,
+      {~morning|noon|night}                           __~extracted/choice_2__
+
+      Moods:                                          __extracted/moods__
+      - calm
+      - stormy
+```
+
+- **Names:** `$name = {…}` names the file after the variable; other choices become `choice_1`, `choice_2` … in prompt order, so the same prompt gives the same names. A list is a heading (`Moods:`, `# Moods`, `**Moods**`) with one item per line (`-`, `*`, `1.` or none); its file is named after the heading.
+- **Sequences carry over:** `{~…}`, `{!…}`, `{@…}` and counts like `{2$$…}` become `__~…__`, `__!…__`, `__@…__`, `__2$$…__`. Nested choices move into the file line as they are.
+- **Left in the prompt**, because a file line can't express them: weights `{5::a|b}`, chances `{50%a|b}`, custom separators `{2$$ and $$…}`, an empty option `{a|}`, an option with `#`, a single option. The console lists what stayed.
+- `mode` is **replace file** by default: edit the prompt, queue again, and the files match it. Only files inside `folder` are written.
+- Outputs: `text` (the new prompt), `files` (one `folder/name` per line), `count`.
 
 **AB Wildcard Load** reads a `.txt` wildcard file chosen in `file`, with the same three outputs. Comments and empty lines are left out, as in `__name__`. New files appear in the list after reloading the browser page.
 
@@ -165,6 +191,30 @@ Four more nodes in **AB/Text** build and shape wildcard files inside a graph. Th
 - **each by chance**: every piece is used with its `chance %` (100 = always, 50 = half the runs, 0 = never), joined in slot order.
 - **one by weight**: exactly one piece, chosen by the weights relative to each other.
 - Same `seed`, same result. The mix has its own random generator, so it doesn't shift the picks of the AB Wildcard node. Pieces are joined with a comma; change it under advanced.
+
+---
+
+## Images from a Folder
+
+**AB Image from Folder** (in **AB/Loaders**) loads one image per run from a folder. The seed picks the image, so nothing is stored between runs: with the seed on `increment` (the default) each queued run takes the next image, a restart continues where the seed is, and runs queued through the API behave the same.
+
+```
+AB Image from Folder ─image→ your workflow (img2img, upscale, IPAdapter …)
+                     ─file_name→ save name or caption
+```
+
+- `folder`: a folder inside `ComfyUI/input` (`shoot_01`), or an absolute path on the machine ComfyUI runs on. The images have to be there; on a remote ComfyUI, copy them over first.
+- `pick`:
+  - **in order** — file 1, 2, 3 … and back to 1. To run a whole folder, set Batch count to the node's `count`.
+  - **shuffled, no repeats** — every image once per round, in a shuffled order (like `{!…}`).
+  - **random** — any image each run, repeats possible.
+  - **selected** — the file named in `file`. A click on a thumbnail sets both.
+- The node shows the folder's images as thumbnails. The selected file, or the one the last run used, is marked.
+- Under **Show advanced inputs**: `every` (next image only after N runs), `match` (file patterns, default `*.png;*.jpg;*.jpeg;*.webp`) and `sort` (by name, `img2` before `img10`, or by date).
+- Outputs: `image`, `mask` (from the alpha channel), `file_name` (without extension), `file_path`, `index` (0-based), `count`.
+- An added or changed image in the folder makes the node run again; an empty folder stops with the path and pattern in the message.
+
+**Every image × every prompt variant.** Link the seed of AB Image from Folder and AB Wildcard to one primitive on `increment`. With 5 images and `{@watercolor|ink|oil}` in the prompt, set `every` to 3 and queue 15 runs: each image gets each style exactly once.
 
 ---
 
@@ -582,7 +632,7 @@ Bug reports, wildcard ideas and pull requests are welcome. Open an [issue](https
 AB Wildcard started as a fork of [UmiAI](https://github.com/Tinuva88/Comfy-UmiAI) and has been rebuilt since.
 
 - **Dropped from the original:** the built-in LLM and API calls, resolution control, negative prompt handling, and LoRA handling inside the wildcard node.
-- **Added:** weighted and nested choices, custom separators, sequences, autocomplete, syntax highlighting, find and search, wildcard file nodes and text tools.
+- **Added:** weighted and nested choices, custom separators, sequences, autocomplete, syntax highlighting, find and search, wildcard file nodes and text tools, extracting a prompt into wildcard files, images from a folder.
 - **Back as separate nodes:** LLM edits run through ComfyUI's own Generate Text node, so the pack still makes no network calls. LoRAs load through **AB LoRA Loader**.
 
 Many thanks to the UmiAI developers for the wildcard engine this grew from.

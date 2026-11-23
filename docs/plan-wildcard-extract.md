@@ -2,8 +2,8 @@
 
 Status: built 2026-11-23 on `feat/wildcard-extract` (`ops.extract`,
 `ops.save_extracted`, `tools.ABWildcardExtract`, `tests/test_extract.py`).
-Open: example workflow + preview, README section. Target: the next release,
-together with AB Image from Folder (`plan-image-from-folder.md`).
+Example workflow, preview and README section added on `release/1.11.0`
+(not pushed), together with AB Image from Folder (`plan-image-from-folder.md`).
 
 ## Goal
 
