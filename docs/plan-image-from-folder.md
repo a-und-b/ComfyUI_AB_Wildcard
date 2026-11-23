@@ -1,8 +1,9 @@
 # Plan: images from a folder (AB Image from Folder)
 
 Status: built 2026-11-23 on branch `feat/image-from-folder` (`folder.py`,
-`tests/test_folder.py`); pytest and the widget roundtrip (both renderers,
-seed linked or not) pass on the local test engine. Not released; the live
+`js/ab_image_folder.js`, `tests/test_folder.py`); pytest, the widget roundtrip
+(both renderers, seed linked or not) and the grid checks below pass on the
+local test engine. Not released; the live
 checks on dd-machine, README and example workflow are still open. Origin: analysis of
 [ComfyUI-DirGir](https://github.com/AshMartian/ComfyUI-DirGir) — its folder
 loop is the useful part, its state handling is not (see "Why not DirGir").
@@ -43,6 +44,18 @@ User-friendly over feature breadth: one node, one `pick` field, no state.
   - `shuffled, no repeats`: `deck_at(seed // every, count, salt=folder)`
   - `random`: own `random.Random(f"ab_folder|{seed // every}")`, never the
     global stream (`every` holds the image in all three picks)
+- **Pick `selected` + thumbnail grid** (Holger, 2026-11-23): a fourth pick
+  takes the file named in the `file` widget and ignores the seed. A name, not
+  an index, so a file added later does not move the choice. The node shows an
+  always-visible, scrollable grid of thumbnails for the folder (a DOM widget,
+  both renderers, not serialized); a click sets `pick: selected` and `file`.
+  The grid marks the selected file, or after a run the file that run used
+  (sent back as `ui`). It refreshes when `folder`, `match` or `sort` change;
+  a linked `folder` shows no grid (its value is unknown before the run).
+  - Routes: `GET /ab_wildcard/folder/list` (same listing as the node) and
+    `GET /ab_wildcard/folder/thumb` (JPEG, 160 px, in-memory cache keyed by
+    path + mtime). The thumb route serves only a file the listing contains,
+    so it reads nothing the node itself could not.
 - **`every` (advanced, default 1)**: next image only after N runs. For job 2 the
   image turns slowest: 5 images × `{@a|b|c}` in the prompt → `every: 3`,
   seed linked to AB Wildcard, 15 runs.
@@ -73,7 +86,11 @@ User-friendly over feature breadth: one node, one `pick` field, no state.
 - pytest (`tests/`): index math for all three picks and `every`; deck gives
   every index once per round; `random` reproducible per seed; `..` refused;
   natural sort; `match` filter; empty folder error; fingerprint changes when a
-  file is added or touched.
+  file is added or touched; `selected` finds the file by name and refuses a
+  name outside the listing; thumbnail size.
+- Grid, live in both renderers: thumbnails appear, a click switches to
+  `selected` and the run loads that file, the grid does not land in
+  `widgets_values` (roundtrip unchanged), the last run's file is marked.
 - Live on dd-machine: folder of 5 images, `{@a|b|c}` prompt, `every: 3`, seed
   linked, 15 runs → 15 distinct pairings. Restart ComfyUI mid-batch → the next
   run continues at the right image. One run queued via comfy-mcp

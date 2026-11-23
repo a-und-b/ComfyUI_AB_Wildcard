@@ -133,6 +133,44 @@ def test_fingerprint_on_error_forces_run(tmp_path):
            f.fingerprint(str(tmp_path / "nope"), f.DEFAULT_MATCH, f.BY_NAME, "/x")  # nan
 
 
+# --- pick: selected and the thumbnail grid ------------------------------------------
+
+def test_selected_finds_file_by_name(tmp_path):
+    for n in ["img1.png", "img2.png", "img10.png"]:
+        touch(tmp_path / n)
+    files = f.list_images(str(tmp_path))
+    assert f.index_of(files, "img10.png") == 2
+    touch(tmp_path / "img0.png")  # a new file moves indexes, not the choice
+    assert f.list_images(str(tmp_path))[f.index_of(f.list_images(str(tmp_path)), "img10.png")][0] == "img10.png"
+    with pytest.raises(ValueError, match="not in the folder"):
+        f.index_of(files, "gone.png")
+    with pytest.raises(ValueError, match="no file is set"):
+        f.index_of(files, "")
+
+
+def test_image_file_serves_only_listed_files(tmp_path):
+    (tmp_path / "shoot").mkdir()
+    touch(tmp_path / "shoot" / "a.png")
+    touch(tmp_path / "shoot" / ".hidden.png")
+    touch(tmp_path / "shoot" / "notes.txt")
+    touch(tmp_path / "outside.png")
+    folder = str(tmp_path / "shoot")
+    assert f.image_file(folder, "a.png") == os.path.join(folder, "a.png")
+    for bad in ["../outside.png", "sub/a.png", ".hidden.png", "notes.txt", "missing.png", "", ".."]:
+        with pytest.raises(ValueError):
+            f.image_file(folder, bad)
+    assert f.image_file(folder, "notes.txt", match="*.txt")
+
+
+def test_thumbnail_is_small_jpeg(tmp_path):
+    Image = pytest.importorskip("PIL.Image")
+    Image.new("RGBA", (800, 400), (255, 0, 0, 128)).save(tmp_path / "a.png")
+    data = f.thumbnail(str(tmp_path / "a.png"), 1)
+    assert data[:2] == b"\xff\xd8"  # JPEG
+    from io import BytesIO
+    assert Image.open(BytesIO(data)).size == (f.THUMB, f.THUMB // 2)
+
+
 # --- loading ----------------------------------------------------------------------
 
 def test_load_image_mask_from_alpha(tmp_path, monkeypatch):
