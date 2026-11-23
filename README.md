@@ -71,17 +71,17 @@ git clone https://github.com/a-und-b/ComfyUI_AB_Wildcard.git
 pip install -r ComfyUI_AB_Wildcard/requirements.txt
 ```
 
-Restart ComfyUI. The nodes appear under **AB Utils**.
+Restart ComfyUI. The nodes appear under **AB/Text** (AB Wildcard and its file and text tools), **AB/LLM** (LLM Prep and Apply) and **AB/Loaders** (LoRA Loader); search for `AB` to see them all.
 
 ---
 
 ## Example workflows
 
-The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models — except the two LLM workflows, which load a text encoder that can generate (see [LLM Edits](#llm-edits-on-marked-parts)), and the LoRA workflow.
+The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node, and need no models — except the two LLM workflows, which load a text encoder that can generate (see [LLM Edits](#llm-edits-on-marked-parts)), and the LoRA workflow. In ComfyUI they are also in the Templates dialog (Workflow → Browse Templates), under the pack's name.
 
-**Basic** — [`ab-wildcard-example.json`](example_workflows/ab-wildcard-example.json): `{a|b}` choices.
+**Basic** — [`ab-wildcard-random-choices.json`](example_workflows/ab-wildcard-random-choices.json): `{a|b}` choices.
 
-![Basic example workflow](example_workflows/ab-wildcard-preview.png)
+![Basic example workflow](example_workflows/ab-wildcard-random-choices-preview.png)
 
 **Features** — [`ab-wildcard-features.json`](example_workflows/ab-wildcard-features.json): a variable, a tag pick from a YAML card (`<[warrior]>`), a conditional on the variable, and two bundled wildcard files.
 
@@ -103,7 +103,7 @@ The workflows are AB Wildcard nodes plus ComfyUI's core **Preview as Text** node
 
 ![Mix pieces example workflow: three prompt pieces with chances, resolved by AB Wildcard](example_workflows/ab-wildcard-mix-preview.png)
 
-**Full demo** — [`ab-wildcard-demo.json`](example_workflows/ab-wildcard-demo.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
+**Full demo** — [`ab-wildcard-all-nodes-tour.json`](example_workflows/ab-wildcard-all-nodes-tour.json): every node of the pack in five annotated groups: the prompt syntax, sequences, saving and loading wildcard files, all six **AB Text Lines** operations side by side, and two **AB Prompt Mix** nodes feeding AB Wildcard. Running it creates `ComfyUI/wildcards/demo/colors.txt`.
 
 **LLM edits** — [`ab-llm-slots.json`](example_workflows/ab-llm-slots.json): AB Wildcard → **AB LLM Prep** → core **Generate Text** → **AB LLM Apply**. A random pick inside `[gen fit: …]` is adapted to the rest of the prompt, `[gen spin: …]` and `[gen expand: …]` are rewritten, everything else stays as typed.
 
@@ -133,7 +133,7 @@ With `<lora:…>` tags in the prompt, put **AB LoRA Loader** in between (see [Lo
 
 ## Wildcard Files and Text Tools
 
-Four more nodes in **AB Utils** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
+Four more nodes in **AB/Text** build and shape wildcard files inside a graph. They need a current ComfyUI (tested with 0.45.2) and show only the fields you need; rarely used ones sit under **Show advanced inputs**.
 
 **AB Wildcard Save** saves lines as `ComfyUI/wildcards/<name>.txt` (subfolders allowed: `my/colors`). Type the list into `text` or connect one.
 
@@ -170,7 +170,7 @@ Four more nodes in **AB Utils** build and shape wildcard files inside a graph. T
 
 ## LLM Edits on Marked Parts
 
-Two nodes in **AB Utils** let an LLM rewrite parts of a prompt while the rest stays exactly as typed: **AB LLM Prep** turns the marked parts into one request, ComfyUI's core **Generate Text** node answers it, **AB LLM Apply** puts the answers back. The text outside the markers is copied by code and never passes through the LLM. The pack itself still makes no network calls: the LLM is whatever node sits between Prep and Apply.
+Two nodes in **AB/LLM** let an LLM rewrite parts of a prompt while the rest stays exactly as typed: **AB LLM Prep** turns the marked parts into one request, ComfyUI's core **Generate Text** node answers it, **AB LLM Apply** puts the answers back. The text outside the markers is copied by code and never passes through the LLM. The pack itself still makes no network calls: the LLM is whatever node sits between Prep and Apply.
 
 ```
 AB Wildcard → AB LLM Prep ─system_prompt, prompt→ Generate Text ─generated_text→ AB LLM Apply → CLIP Text Encode
@@ -239,7 +239,7 @@ The CLIP type only matters for loading; the same weights give the same text. Kee
 
 ## LoRAs in the Prompt
 
-Write LoRAs into the prompt like in A1111/Forge. **AB LoRA Loader** (in **AB Utils**) loads them onto the model and CLIP and passes on the prompt without the tags.
+Write LoRAs into the prompt like in A1111/Forge. **AB LoRA Loader** (in **AB/Loaders**) loads them onto the model and CLIP and passes on the prompt without the tags.
 
 ```
 Load Checkpoint ─model, clip─→ AB LoRA Loader ─model─→ KSampler

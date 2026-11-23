@@ -11,7 +11,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ABWildcardNode": "AB Wildcard",
 }
 
-# The AB Utils nodes use ComfyUI's V3 node API (display names live in their schema).
+# The helper nodes in tools.py use ComfyUI's V3 node API (display names live in their schema).
 # On a ComfyUI without it, AB Wildcard itself must keep working.
 try:
     from .tools import (ABLLMApply, ABLLMPrep, ABLoraLoader, ABPromptMix, ABTextLines, ABWildcardLoad,

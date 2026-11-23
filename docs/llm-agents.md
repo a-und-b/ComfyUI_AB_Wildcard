@@ -5,7 +5,7 @@ typically through a ComfyUI MCP server or the `/prompt` HTTP API. Humans: the
 [README](../README.md) is the friendlier read; this file is dense on purpose.
 
 All names below are exact API names (`class_type`, input keys, option strings).
-Checked against ComfyUI 0.46.x; the nodes live in the category **AB Utils**.
+Checked against ComfyUI 0.46.x; the nodes live in the categories **AB/Text**, **AB/LLM** and **AB/Loaders**.
 
 ---
 

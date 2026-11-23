@@ -1,4 +1,4 @@
-"""AB Utils nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply,
+"""AB Wildcard helper nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply,
 LoRA loader (V3 node API).
 
 Thin wrappers: the logic lives in ops.py and loras.py, where pytest can reach it.
@@ -13,7 +13,8 @@ from comfy_api.latest import io
 from . import loras, ops
 from .nodes import TagLoader, get_all_wildcard_paths
 
-CATEGORY = "AB Utils"
+# Categories per NODE_MAINTENANCE.md §6 "Names and categories"
+TEXT, LLM, LOADERS = "AB/Text", "AB/LLM", "AB/Loaders"
 UINT64 = 0xffffffffffffffff
 
 
@@ -63,7 +64,7 @@ class ABWildcardSave(io.ComfyNode):
         return io.Schema(
             node_id="ABWildcardSave",
             display_name="AB Wildcard Save",
-            category=CATEGORY,
+            category=TEXT,
             description="Saves lines as a wildcard file in ComfyUI/wildcards and outputs the whole file.",
             search_aliases=["save wildcard", "write wildcard file", "save list", "save lines"],
             is_output_node=True,
@@ -92,7 +93,7 @@ class ABWildcardLoad(io.ComfyNode):
         return io.Schema(
             node_id="ABWildcardLoad",
             display_name="AB Wildcard Load",
-            category=CATEGORY,
+            category=TEXT,
             description="Reads a wildcard file: all lines as text, as a list, and how many.",
             search_aliases=["load wildcard", "read wildcard file", "load list", "read lines"],
             inputs=[
@@ -122,7 +123,7 @@ class ABTextLines(io.ComfyNode):
         return io.Schema(
             node_id="ABTextLines",
             display_name="AB Text Lines",
-            category=CATEGORY,
+            category=TEXT,
             description="One job on a list of lines: sort, filter, replace, remove duplicates, shuffle, "
                         "or split and join. Chain several nodes for several jobs.",
             search_aliases=["sort lines", "filter lines", "replace text", "remove duplicates", "dedupe",
@@ -191,7 +192,7 @@ class ABPromptMix(io.ComfyNode):
         return io.Schema(
             node_id="ABPromptMix",
             display_name="AB Prompt Mix",
-            category=CATEGORY,
+            category=TEXT,
             description="Lets prompt pieces through by chance: each piece with its own chance, "
                         "or exactly one piece by weight. Same seed, same result.",
             search_aliases=["random prompt", "chance", "probability", "weighted choice", "prompt pieces"],
@@ -233,7 +234,7 @@ class ABLLMPrep(io.ComfyNode):
         return io.Schema(
             node_id="ABLLMPrep",
             display_name="AB LLM Prep",
-            category=CATEGORY,
+            category=LLM,
             description="Turns the [gen …] parts of a prompt into one request for a text generator "
                         "(e.g. Generate Text). AB LLM Apply puts the answers back; the rest of the "
                         "prompt never passes through the LLM.",
@@ -272,7 +273,7 @@ class ABLLMApply(io.ComfyNode):
         return io.Schema(
             node_id="ABLLMApply",
             display_name="AB LLM Apply",
-            category=CATEGORY,
+            category=LLM,
             description="Puts a text generator's answers back into the prompt from AB LLM Prep. "
                         "A part without a usable answer keeps its original text.",
             search_aliases=["llm", "gen", "apply llm answer", "prompt slots"],
@@ -297,7 +298,7 @@ class ABLoraLoader(io.ComfyNode):
         return io.Schema(
             node_id="ABLoraLoader",
             display_name="AB LoRA Loader",
-            category=CATEGORY,
+            category=LOADERS,
             description="Loads the LoRAs named in the prompt as <lora:name:strength> and outputs the "
                         "prompt without them. Put it between AB Wildcard and CLIP Text Encode.",
             search_aliases=["lora", "lora tag", "load lora", "lora from prompt", "prompt lora", "<lora:",

@@ -1,4 +1,4 @@
-"""Pure logic behind the AB Utils nodes in tools.py.
+"""Pure logic behind the helper nodes in tools.py.
 
 No comfy_api import here, so pytest reaches all of it without ComfyUI.
 Plan: docs/plan-wildcard-io.md

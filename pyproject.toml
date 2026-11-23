@@ -1,7 +1,7 @@
 [project]
 name = "ab_wildcard"
 description = "Wildcards and dynamic prompts for ComfyUI: variables, conditionals, sequences, YAML tag cards, LoRA tags in the prompt and LLM edits on marked parts. Autocomplete and syntax highlighting in the node. Needs only PyYAML."
-version = "1.9.2"
+version = "1.10.0"
 license = {file = "LICENSE"}
 
 [project.urls]
@@ -9,5 +9,5 @@ Repository = "https://github.com/a-und-b/ComfyUI_AB_Wildcard"
 
 [tool.comfy]
 PublisherId = "a-und-b"
-DisplayName = "AB Wildcard Text Processor"
+DisplayName = "AB Wildcard"
 Icon = ""

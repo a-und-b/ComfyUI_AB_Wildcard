@@ -1,4 +1,4 @@
-"""Tests for ops.py, the logic behind the AB Utils nodes (tools.py)."""
+"""Tests for ops.py, the logic behind the helper nodes (tools.py)."""
 import pytest
 
 import nodes

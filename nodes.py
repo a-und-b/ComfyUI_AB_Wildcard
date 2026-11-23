@@ -1259,7 +1259,8 @@ class ABWildcardNode:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
     FUNCTION = "process"
-    CATEGORY = "AB Utils"
+    CATEGORY = "AB/Text"
+    SEARCH_ALIASES = ["wildcard", "dynamic prompt", "random prompt", "prompt variables", "__wildcard__"]
     COLOR = "#322947"
     DESCRIPTION = (
         "Expands wildcards, weight syntax, and dynamic prompt options into a "
