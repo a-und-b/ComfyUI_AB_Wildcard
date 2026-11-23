@@ -127,7 +127,7 @@ def file_key(name):
     return name[:-4] if name.lower().endswith(".txt") else name
 
 
-def safe_path(base, name):
+def safe_path(base, name, node="AB Wildcard Save"):
     """(key, path) of <base>/<name>.txt; refuses anything that leaves base."""
     key = file_key(name)
     base = os.path.realpath(base)
@@ -141,7 +141,7 @@ def safe_path(base, name):
     )
     if bad:
         raise ValueError(
-            f"AB Wildcard Save: {name!r} can't be used as a file name. "
+            f"{node}: {name!r} can't be used as a file name. "
             "Use a relative name like my/colors (no '..', not starting with ~ @ !)."
         )
     return key, path
@@ -181,6 +181,164 @@ def clear_wildcard_caches():
 def load_lines(path):
     with open(path, encoding="utf8") as f:
         return read_file_lines(f)
+
+
+# --- extract: big prompt -> wildcard files ---------------------------------------------
+# Plan: docs/plan-wildcard-extract.md. List sections (heading + items) first, line based;
+# then the top-level {…} blocks of what is left. Each becomes a file and a __folder/name__.
+
+_HEADINGS = [
+    re.compile(r"^#{1,6}\s+(.+?)\s*:?\s*$"),                        # # Name / ## Name
+    re.compile(r"^\*\*(.+?):?\*\*\s*:?\s*$"),                        # **Name** / **Name:**
+    re.compile(r"^(?![-*+]\s|\d+[.)]\s)([^:{}|$#]+?)\s*:\s*$"),      # Name:
+]
+_ITEM_MARK = re.compile(r"^(?:[-*+]|\d+[.)])\s+")                   # - x / * x / 1. x
+# The part of a block AB Wildcard reads before the options: ~ @ ! and/or a count with $$
+_BLOCK_HEAD = re.compile(r"^([~@!]?)(?:(\d+|\d*-\d*)\$\$)?")
+_ASSIGN_HEAD = re.compile(r"^\s*\$(\w+)\s*=\s*$")                   # "$name = " before a block
+
+
+def slug(name):
+    """File name from a heading: lower case, spaces to _, only letters, digits, _ and -."""
+    return re.sub(r"[^\w-]", "", re.sub(r"\s+", "_", (name or "").strip().lower()))
+
+
+def _heading(line):
+    s = line.strip()
+    for rx in _HEADINGS:
+        m = rx.match(s)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _list_sections(lines):
+    """[(first line, end line, heading, items)]: a heading and the lines up to an empty line or the next heading."""
+    out, i = [], 0
+    while i < len(lines):
+        head, j = _heading(lines[i]), i + 1
+        if head is not None:
+            while j < len(lines) and lines[j].strip() and _heading(lines[j]) is None:
+                j += 1
+            items = tidy(_ITEM_MARK.sub("", ln.strip()) for ln in lines[i + 1:j])
+            if items:  # a heading with no items is left alone
+                out.append((i, j, head, items))
+                i = j
+                continue
+        i += 1
+    return out
+
+
+def _top_blocks(text):
+    """(start, end) of each top-level {…} block; an unclosed { is not a block."""
+    out, depth, start = [], 0, 0
+    for i, c in enumerate(text):
+        if c == "{":
+            start = i if depth == 0 else start
+            depth += 1
+        elif c == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                out.append((start, i + 1))
+    return out
+
+
+def _flat(content):
+    """content with nested {…} blanked out, same length, so top-level | and markers line up."""
+    out, depth = [], 0
+    for c in content:
+        if c == "{":
+            depth += 1
+        out.append(c if depth == 0 else " ")
+        if c == "}" and depth:
+            depth -= 1
+    return "".join(out)
+
+
+def _classify(content):
+    """(prefix for __…__, options), or (None, why it stays inline).
+
+    Mirrors DynamicPromptReplacer.process_content: ~ @ ! first, then ::, %, $$.
+    """
+    if "#" in content:
+        return None, "an option contains # (a comment in files)"
+    flat = _flat(content)
+    m = _BLOCK_HEAD.match(flat)
+    seq, count = m.group(1), m.group(2)
+    rest, rest_flat = content[m.end():], flat[m.end():]
+    if "$$" in rest_flat:
+        return None, "custom separator or a count files can't take"
+    if not seq and count is None:
+        if "::" in flat:
+            return None, "weighted"
+        if "%" in flat:
+            try:
+                float(flat.split("%", 1)[0])
+                return None, "chance"
+            except ValueError:
+                pass  # AB Wildcard reads it as a plain choice too
+    cuts = [-1] + [i for i, c in enumerate(rest_flat) if c == "|"] + [len(rest)]
+    options = [" ".join(rest[a + 1:b].split()) for a, b in zip(cuts, cuts[1:])]
+    if len(options) < 2:
+        return None, "single option"
+    if not all(options):
+        return None, "an empty option (a file has no empty lines)"
+    return seq + (f"{count}$$" if count is not None else ""), options
+
+
+def extract(text, folder="extracted"):
+    """(rewritten text, {name: lines}, [(block, why left inline)]). Writes nothing."""
+    used = set()
+
+    def name_for(wanted, fallback):
+        base = slug(wanted) or fallback
+        name, n = base, 1
+        while name in used:
+            n += 1
+            name = f"{base}_{n}"
+        used.add(name)
+        return name
+
+    files = {}
+    lines, out, pos = (text or "").split("\n"), [], 0
+    for n, (start, end, head, items) in enumerate(_list_sections(lines), 1):
+        name = name_for(head, f"list_{n}")
+        files[name] = items
+        out += lines[pos:start] + [f"__{folder}/{name}__"]
+        pos = end
+    text = "\n".join(out + lines[pos:])
+
+    out, pos, skipped, n = [], 0, [], 0
+    for start, end in _top_blocks(text):
+        prefix, options = _classify(text[start + 1:end - 1])
+        if prefix is None:
+            skipped.append((text[start:end], options))
+            continue
+        line_start = text.rfind("\n", 0, start) + 1
+        rest_of_line = text[end:].split("\n", 1)[0]
+        var = _ASSIGN_HEAD.match(text[line_start:start])
+        if var and not rest_of_line.strip():
+            name = name_for(var.group(1), "choice")
+        else:
+            n += 1
+            name = name_for(f"choice_{n}", f"choice_{n}")
+        files[name] = options
+        out += [text[pos:start], f"__{prefix}{folder}/{name}__"]
+        pos = end
+    return "".join(out + [text[pos:]]), files, skipped
+
+
+def save_extracted(base, folder, text, mode="replace file"):
+    """extract() and write each file to <base>/<folder>/<name>.txt: (text, [keys], skipped)."""
+    node = "AB Wildcard Extract"
+    folder = safe_path(base, folder, node)[0].rstrip("/")
+    new, files, skipped = extract(text, folder)
+    keys = []
+    for name, items in files.items():
+        key, path = safe_path(base, f"{folder}/{name}", node)
+        save_lines(path, "\n".join(items), mode)
+        keys.append(key)
+    return new, keys, skipped
 
 
 # --- LLM prep / apply ----------------------------------------------------------------
