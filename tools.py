@@ -1,8 +1,9 @@
-"""AB Wildcard helper nodes: save/load wildcard files, line tools, prompt mixing, LLM prep/apply,
+"""AB Wildcard helper nodes: save/extract/load wildcard files, line tools, prompt mixing, LLM prep/apply,
 LoRA loader (V3 node API).
 
 Thin wrappers: the logic lives in ops.py and loras.py, where pytest can reach it.
-Plans: docs/plan-wildcard-io.md, docs/plan-llm-ops.md, docs/plan-lora-loader.md
+Plans: docs/plan-wildcard-io.md, docs/plan-wildcard-extract.md, docs/plan-llm-ops.md,
+docs/plan-lora-loader.md
 """
 import logging
 import os
@@ -85,6 +86,46 @@ class ABWildcardSave(io.ComfyNode):
         items = ops.save_lines(path, text, mode)
         ops.clear_wildcard_caches()
         return _lines_out(items)
+
+
+class ABWildcardExtract(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ABWildcardExtract",
+            display_name="AB Wildcard Extract",
+            category=TEXT,
+            description="Turns the {a|b} choices and the lists (heading + items) of a prompt into wildcard "
+                        "files and outputs the prompt with __folder/name__ in their place.",
+            search_aliases=["extract wildcards", "prompt to wildcards", "split prompt", "lists to wildcards",
+                            "save choices"],
+            is_output_node=True,
+            inputs=[
+                io.String.Input("text", multiline=True, tooltip=(
+                    "A prompt with {a|b} choices, and/or lists: a heading (Name:, # Name, **Name**) and one "
+                    "item per line. $name = {…} names the file after the variable; other choices become "
+                    "choice_1, choice_2 …")),
+                io.String.Input("folder", default="extracted",
+                                tooltip="Files go to ComfyUI/wildcards/<folder>/; only files in it are written"),
+                io.Combo.Input("mode", options=ops.SAVE_MODES, default="replace file", tooltip=(
+                    "replace file: the files match the prompt again after an edit · "
+                    "add new lines: only lines a file doesn't have yet · add all lines: append everything")),
+            ],
+            outputs=[
+                io.String.Output(display_name="text", tooltip="The prompt with __folder/name__ references"),
+                io.String.Output(display_name="files", tooltip="Each written file as folder/name, one per line"),
+                io.Int.Output(display_name="count", tooltip="Files written"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, text, folder, mode):
+        new, keys, skipped = ops.save_extracted(_wildcards_dir(), folder, text, mode)
+        ops.clear_wildcard_caches()
+        if skipped:
+            logging.warning("[AB Wildcard Extract] left inline: "
+                            + "; ".join(f"{block} ({why})" for block, why in skipped))
+        return io.NodeOutput(new, "\n".join(keys), len(keys))
 
 
 class ABWildcardLoad(io.ComfyNode):
