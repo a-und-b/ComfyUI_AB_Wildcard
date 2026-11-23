@@ -14,13 +14,20 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 # The helper nodes in tools.py use ComfyUI's V3 node API (display names live in their schema).
 # On a ComfyUI without it, AB Wildcard itself must keep working.
 try:
-    from .tools import (ABLLMApply, ABLLMPrep, ABLoraLoader, ABPromptMix, ABTextLines, ABWildcardLoad,
-                        ABWildcardSave)
+    from .tools import (ABLLMApply, ABLLMPrep, ABLoraLoader, ABPromptMix, ABTextLines, ABWildcardExtract,
+                        ABWildcardLoad, ABWildcardSave)
 except ImportError as e:
-    logging.warning(f"[AB Wildcard] Save/Load/Text Lines/Prompt Mix/LLM Prep/Apply/LoRA Loader need a newer ComfyUI and are disabled: {e}")
+    logging.warning(f"[AB Wildcard] Save/Extract/Load/Text Lines/Prompt Mix/LLM Prep/Apply/LoRA Loader need a newer ComfyUI and are disabled: {e}")
 else:
-    for cls in (ABWildcardSave, ABWildcardLoad, ABTextLines, ABPromptMix, ABLLMPrep, ABLLMApply, ABLoraLoader):
+    for cls in (ABWildcardSave, ABWildcardExtract, ABWildcardLoad, ABTextLines, ABPromptMix, ABLLMPrep, ABLLMApply, ABLoraLoader):
         NODE_CLASS_MAPPINGS[cls.__name__] = cls
+
+try:
+    from .folder import ABImageFromFolder
+except ImportError as e:
+    logging.warning(f"[AB Wildcard] AB Image from Folder needs a newer ComfyUI and is disabled: {e}")
+else:
+    NODE_CLASS_MAPPINGS["ABImageFromFolder"] = ABImageFromFolder
 
 # Expose the web directory (frontend autocomplete)
 WEB_DIRECTORY = "./js"
