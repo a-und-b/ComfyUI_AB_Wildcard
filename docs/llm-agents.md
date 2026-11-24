@@ -60,7 +60,7 @@ Rules of thumb:
 | `text` | STRING | prompt with the syntax from §4 |
 | `seed` | INT | same text + same seed = same output |
 
-Outputs: `0 text` (STRING).
+Outputs: `0 text` (the expanded prompt), `1 raw` (the input exactly as typed, comments and blank lines included; feed it to `ABWildcardExtract`, which needs the `{a|b}` choices and lists that `text` has already resolved).
 
 ### `ABLLMPrep` — AB LLM Prep
 

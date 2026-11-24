@@ -151,7 +151,7 @@ Five more nodes in **AB/Text** build and shape wildcard files inside a graph. Th
 - Lines are trimmed and empty ones dropped. Names with `..`, absolute paths or a leading `~ @ !` are refused.
 - ComfyUI skips a node whose inputs didn't change, so queuing the same text again doesn't add it twice.
 
-**AB Wildcard Extract** turns a long prompt into wildcard files: every `{a|b|c}` choice and every list becomes a file in `ComfyUI/wildcards/<folder>/`, and the prompt comes back with `__folder/name__` in their place.
+**AB Wildcard Extract** turns a long prompt into wildcard files: every `{a|b|c}` choice and every list becomes a file in `ComfyUI/wildcards/<folder>/`, and the prompt comes back with `__folder/name__` in their place. To extract the prompt you typed into **AB Wildcard**, connect its **raw** output (the text exactly as typed) to Extract; its **text** output has the choices already resolved.
 
 ```text
 in:   $color = {red|blue|green}                 out:  $color = __extracted/color__
