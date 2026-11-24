@@ -587,7 +587,7 @@ __examples/lighting__,
 ## Tips
 
 1. **Batch Generation** — Use ComfyUI's "Queue Batch" (not Latent batch size) for variations
-2. **Hot Reload** — Click "Refresh Wildcards" button to reload files without restart
+2. **Hot Reload** — A wildcard file you edit is picked up on the next run, and the node runs again when one changed, even with the same text and seed. The "Refresh Wildcards" button only updates autocomplete and the error marks in the editor.
 3. **Autocomplete** — Type `__` or `<name` (wildcards/cards), `<[` (tags), `$` (variables) or `$name.x` (modifiers); accept with Tab/Enter or click
 4. **Find and replace** — Cmd/Ctrl+F in the text field; switch to Wildcards to search file and card contents
 5. **Grow a list** — LLM or list node → **AB Wildcard Save** (add new lines) builds a wildcard file over many runs

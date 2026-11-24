@@ -1,3 +1,4 @@
+import hashlib
 import os
 import random
 import re
@@ -188,6 +189,34 @@ def process_wildcard_range(tag, lines):
         if '#' in selected:
             selected = selected.split('#')[0].strip()
         return selected
+
+_LAST_FINGERPRINT = None
+
+def wildcard_fingerprint():
+    """Hash of every wildcard file's path, size and mtime (what TagLoader reads)."""
+    h = hashlib.sha1()
+    for location in sorted(get_all_wildcard_paths()):
+        for root, dirs, files in os.walk(location):
+            dirs.sort()
+            for name in sorted(files):
+                if not name.lower().endswith(('.txt', '.yaml', '.csv')):
+                    continue
+                path = os.path.join(root, name)
+                try:
+                    st = os.stat(path)
+                except OSError:
+                    continue
+                h.update(f"{path}\0{st.st_size}\0{st.st_mtime_ns}\n".encode("utf8", "replace"))
+    return h.hexdigest()
+
+def drop_stale_caches():
+    """Forget cached file contents and the card index once a wildcard file changed on disk."""
+    global _LAST_FINGERPRINT
+    current = wildcard_fingerprint()
+    if _LAST_FINGERPRINT is not None and current != _LAST_FINGERPRINT:
+        GLOBAL_CACHE.clear()
+        GLOBAL_INDEX.update(built=False, files=set(), entries={})
+    _LAST_FINGERPRINT = current
 
 def get_all_wildcard_paths():
     """
@@ -1293,7 +1322,14 @@ class ABWildcardNode:
         
         return val
 
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # Wildcard files can change on disk while text and seed stay the same:
+        # without this ComfyUI reuses the old result.
+        return wildcard_fingerprint()
+
     def process(self, **kwargs):
+        drop_stale_caches()
         # 1. EXTRACT INPUTS SAFELY (CRASH PROOFING)
         text = self.get_val(kwargs, "text", "", str)
         seed = self.get_val(kwargs, "seed", 0, int)
