@@ -2,3 +2,5 @@
 # Runtime deps live in requirements.txt (what ComfyUI Manager installs).
 -r requirements.txt
 pytest>=7.0.0
+# Provided by ComfyUI at runtime, needed to import nodes.py in tests.
+aiohttp
