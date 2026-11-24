@@ -6,6 +6,8 @@ the engine resolves a *complete* wildcard token, so a truncated string
 """
 import os
 
+import pytest
+
 import nodes
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -374,3 +376,35 @@ def test_search_respects_limit_and_case():
     assert len(_search("a", 50)) == 0  # one char
     assert len(_search("ar", 3)) <= 3
     assert _search("EMERALD") == _search("emerald")
+
+
+# --- wildcard files edited on disk ---------------------------------------------------------------
+
+@pytest.fixture
+def wc_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(nodes, "get_all_wildcard_paths", lambda: [str(tmp_path)])
+    nodes.GLOBAL_CACHE.clear()
+    nodes.GLOBAL_INDEX.update({"built": False, "files": set(), "entries": {}})
+    monkeypatch.setattr(nodes, "_LAST_FINGERPRINT", None)
+    yield tmp_path
+    nodes.GLOBAL_CACHE.clear()
+    nodes.GLOBAL_INDEX.update({"built": False, "files": set(), "entries": {}})
+
+
+def test_is_changed_follows_the_wildcard_files(wc_dir):
+    f = wc_dir / "pets.txt"
+    f.write_text("cat", encoding="utf8")
+    first = nodes.ABWildcardNode.IS_CHANGED(text="__pets__", seed=1)
+    assert nodes.ABWildcardNode.IS_CHANGED(text="__pets__", seed=1) == first
+    f.write_text("a longer line", encoding="utf8")
+    assert nodes.ABWildcardNode.IS_CHANGED(text="__pets__", seed=1) != first
+    (wc_dir / "new.txt").write_text("x", encoding="utf8")
+    assert nodes.ABWildcardNode.IS_CHANGED(text="__pets__", seed=1) not in (first,)
+
+
+def test_file_edited_on_disk_is_read_without_refresh(wc_dir):
+    f = wc_dir / "pets.txt"
+    f.write_text("cat", encoding="utf8")
+    assert run("__pets__") == "cat"
+    f.write_text("dog!", encoding="utf8")  # no refresh click, no restart
+    assert run("__pets__") == "dog!"
