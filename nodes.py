@@ -1256,8 +1256,12 @@ class ABWildcardNode:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("text", "raw")
+    OUTPUT_TOOLTIPS = (
+        "The expanded prompt",
+        "The prompt exactly as typed, nothing expanded or removed: to AB Wildcard Extract",
+    )
     FUNCTION = "process"
     CATEGORY = "AB/Text"
     SEARCH_ALIASES = ["wildcard", "dynamic prompt", "random prompt", "prompt variables", "__wildcard__"]
@@ -1293,6 +1297,7 @@ class ABWildcardNode:
         # 1. EXTRACT INPUTS SAFELY (CRASH PROOFING)
         text = self.get_val(kwargs, "text", "", str)
         seed = self.get_val(kwargs, "seed", 0, int)
+        raw = text
 
         # ============================================================
         # CORE PROCESSING
@@ -1369,7 +1374,7 @@ class ABWildcardNode:
         prompt = re.sub(r',\s*,', ',', prompt)
         prompt = re.sub(r'\s+', ' ', prompt).strip().strip(',')
 
-        return (prompt,)
+        return (prompt, raw)
 
 # ==============================================================================
 # API ENDPOINTS

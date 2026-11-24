@@ -26,6 +26,14 @@ def run(text, seed):
     return nodes.ABWildcardNode().process(text=text, seed=seed)[0]
 
 
+def test_raw_output_is_the_input_and_feeds_extract(root):
+    text, raw = nodes.ABWildcardNode().process(text=PLAN_EXAMPLE + "  // note", seed=1)
+    assert raw == PLAN_EXAMPLE + "  // note"
+    assert "{" not in text
+    new, files, _ = ops.extract(raw)
+    assert "__extracted/color__" in new and set(files) == {"color", "choice_1", "choice_2", "moods"}
+
+
 # --- resolve check: decides whether nested blocks may move into files ----------------------
 
 def test_file_line_with_block_resolves_like_inline(root):
