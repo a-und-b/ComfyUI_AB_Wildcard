@@ -1,7 +1,8 @@
 [project]
 name = "ab_wildcard"
 description = "Wildcards and dynamic prompts for ComfyUI: variables, conditionals, sequences, YAML tag cards, LoRA tags in the prompt, LLM edits on marked parts, prompts extracted into wildcard files and one image per run from a folder. Autocomplete and syntax highlighting in the node. Needs only PyYAML."
-version = "1.12.0"
+version = "1.12.1"
+dependencies = ["pyyaml"]
 license = {file = "LICENSE"}
 
 [project.urls]
