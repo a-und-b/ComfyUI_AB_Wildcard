@@ -5,13 +5,17 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const NODE = "ABImageFromFolder";
-const GRID_HEIGHT = 200;
+const GRID_MIN_HEIGHT = 110;   // about one row; the grid takes whatever height the node has
+const GRID_START_HEIGHT = 260; // node height for a new node: about three rows
 
 const style = document.createElement("style");
 style.textContent = `
-.ab-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px;
-  align-content: start; overflow-y: auto; box-sizing: border-box; padding: 2px; height: ${GRID_HEIGHT}px;
-  flex: none; /* Nodes 2.0 wraps DOM widgets in a flex column that would stretch it */ }
+.ab-thumbs-wrap { position: relative; height: 100%; min-height: ${GRID_MIN_HEIGHT}px; flex: 1 1 auto; }
+/* The grid sits absolutely in its wrapper: a grid's own content height would otherwise size the
+   widget row in Nodes 2.0 (auto row) and the node could never scroll it, only grow. */
+.ab-thumbs { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 4px; align-content: start; overflow-y: auto; box-sizing: border-box; padding: 2px; }
+.ab-thumbs:focus { outline: none; }
 .ab-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; cursor: pointer;
   outline: 3px solid transparent; outline-offset: -3px; background: rgba(127,127,127,.15); }
 .ab-thumbs img:hover { outline-color: rgba(255,255,255,.5); }
@@ -32,7 +36,15 @@ app.registerExtension({
 
             const el = document.createElement("div");
             el.className = "ab-thumbs";
-            // scroll the grid, not the canvas
+            // scroll the grid, not the canvas: Nodes 2.0 looks for this attribute, legacy for the stopPropagation
+            // It only counts while the grid has focus, so take focus when the mouse arrives
+            // (not from a text field the user is typing in).
+            el.dataset.captureWheel = "true";
+            el.tabIndex = -1;
+            el.addEventListener("mouseenter", () => {
+                const a = document.activeElement;
+                if (!a || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) el.focus({ preventScroll: true });
+            });
             el.addEventListener("wheel", (e) => {
                 if (el.scrollHeight > el.clientHeight) e.stopPropagation();
             }, { passive: true });
@@ -47,11 +59,14 @@ app.registerExtension({
                 node.setDirtyCanvas(true, true);
             });
 
-            const grid = node.addDOMWidget("thumbs", "ab_thumbs", el, {
+            const wrap = document.createElement("div");
+            wrap.className = "ab-thumbs-wrap";
+            wrap.appendChild(el);
+
+            const grid = node.addDOMWidget("thumbs", "ab_thumbs", wrap, {
                 serialize: false,  // not in the prompt…
                 hideOnZoom: false,
-                getMinHeight: () => GRID_HEIGHT + 8,
-                getMaxHeight: () => GRID_HEIGHT + 8,
+                getMinHeight: () => GRID_MIN_HEIGHT,
             });
             grid.serialize = false;  // …and not in widgets_values
 
@@ -102,7 +117,7 @@ app.registerExtension({
                 };
             }
 
-            node.setSize([Math.max(node.size[0], 340), node.computeSize()[1]]);
+            node.setSize([Math.max(node.size[0], 340), node.computeSize()[1] + GRID_START_HEIGHT - GRID_MIN_HEIGHT]);
             node.abRefresh();
             return r;
         };
